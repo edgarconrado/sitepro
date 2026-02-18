@@ -2,33 +2,34 @@
  * SitePro — Messages Screen
  */
 
-import { Avatar } from '@components/ui/Avatar';
-import { colors } from '@theme/colors';
-import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
-import { timeAgo } from '@utils/index';
+import React, { useState, useMemo, useRef } from 'react';
 import {
-  ArrowLeft,
-  Camera,
-  Paperclip,
-  Search,
-  Send,
-  X,
-} from 'lucide-react-native';
-import React, { useMemo, useRef, useState } from 'react';
-import {
+  View,
+  Text,
+  StyleSheet,
   FlatList,
-  KeyboardAvoidingView,
+  TouchableOpacity,
+  TextInput,
+  StatusBar,
   Modal,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Search,
+  X,
+  Send,
+  ArrowLeft,
+  Paperclip,
+  Camera,
+} from 'lucide-react-native';
+import { colors } from '@theme/colors';
+import { fontSize, fontWeight, spacing, borderRadius, shadows, iconSize, touchSize } from '@theme/tokens';
+import { Avatar } from '@components/ui/Avatar';
+import { TopBar } from '@components/layout/TopBar';
+import { timeAgo } from '@utils/index';
 
 // ─── Mock Data ────────────────────────────────────────────────
 interface MockMessage {
@@ -269,7 +270,10 @@ export default function MessagesScreen() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
 
-      {/* Header */}
+      {/* Top Bar compartido */}
+      <TopBar />
+
+      {/* Search Header */}
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={styles.screenTitle}>Mensajes</Text>

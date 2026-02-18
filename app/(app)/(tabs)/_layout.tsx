@@ -1,14 +1,17 @@
 /**
- * SitePro — Tab Navigator (Bottom Navigation)
- * 5 tabs: Home | Tareas | Fotos | Mensajes | Equipo
+ * SitePro — Tab Navigator
+ * El SideMenu vive aquí para estar disponible en todas las tabs
  */
 
+import React from 'react';
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { Home, CheckSquare, Camera, MessageSquare, Users } from 'lucide-react-native';
 import { colors } from '@theme/colors';
 import { fontSize, fontWeight, touchSize, iconSize } from '@theme/tokens';
 import { useAppStore } from '@store/appStore';
+import { SideMenu } from '@components/layout/SideMenu';
+import { useMenu } from '@hooks/useMenu';
 
 interface TabIconProps {
   icon: React.ReactNode;
@@ -24,18 +27,11 @@ function TabIcon({ icon, label, focused, badgeCount }: TabIconProps) {
         {icon}
         {badgeCount && badgeCount > 0 ? (
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>
-              {badgeCount > 9 ? '9+' : badgeCount}
-            </Text>
+            <Text style={styles.badgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
           </View>
         ) : null}
       </View>
-      <Text
-        style={[
-          styles.tabLabel,
-          { color: focused ? colors.primary[600] : colors.gray[400] },
-        ]}
-      >
+      <Text style={[styles.tabLabel, { color: focused ? colors.primary[600] : colors.gray[400] }]}>
         {label}
       </Text>
     </View>
@@ -44,107 +40,83 @@ function TabIcon({ icon, label, focused, badgeCount }: TabIconProps) {
 
 export default function TabsLayout() {
   const unreadNotifications = useAppStore((s) => s.unreadNotifications);
+  const { isOpen, close } = useMenu();
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarShowLabel: false,
-      }}
-    >
-      <Tabs.Screen
-        name="home"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon={
-                <Home
-                  size={iconSize.lg}
-                  color={focused ? colors.primary[600] : colors.gray[400]}
-                  strokeWidth={focused ? 2.5 : 1.5}
-                />
-              }
-              label="Inicio"
-              focused={focused}
-            />
-          ),
+    <View style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: styles.tabBar,
+          tabBarShowLabel: false,
         }}
-      />
-      <Tabs.Screen
-        name="tasks"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon={
-                <CheckSquare
-                  size={iconSize.lg}
-                  color={focused ? colors.primary[600] : colors.gray[400]}
-                  strokeWidth={focused ? 2.5 : 1.5}
-                />
-              }
-              label="Tareas"
-              focused={focused}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="photos"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon={
-                <Camera
-                  size={iconSize.lg}
-                  color={focused ? colors.primary[600] : colors.gray[400]}
-                  strokeWidth={focused ? 2.5 : 1.5}
-                />
-              }
-              label="Fotos"
-              focused={focused}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="messages"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon={
-                <MessageSquare
-                  size={iconSize.lg}
-                  color={focused ? colors.primary[600] : colors.gray[400]}
-                  strokeWidth={focused ? 2.5 : 1.5}
-                />
-              }
-              label="Mensajes"
-              focused={focused}
-              badgeCount={unreadNotifications}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="team"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon={
-                <Users
-                  size={iconSize.lg}
-                  color={focused ? colors.primary[600] : colors.gray[400]}
-                  strokeWidth={focused ? 2.5 : 1.5}
-                />
-              }
-              label="Equipo"
-              focused={focused}
-            />
-          ),
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="home"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon
+                icon={<Home size={iconSize.lg} color={focused ? colors.primary[600] : colors.gray[400]} strokeWidth={focused ? 2.5 : 1.5} />}
+                label="Inicio"
+                focused={focused}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="tasks"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon
+                icon={<CheckSquare size={iconSize.lg} color={focused ? colors.primary[600] : colors.gray[400]} strokeWidth={focused ? 2.5 : 1.5} />}
+                label="Tareas"
+                focused={focused}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="photos"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon
+                icon={<Camera size={iconSize.lg} color={focused ? colors.primary[600] : colors.gray[400]} strokeWidth={focused ? 2.5 : 1.5} />}
+                label="Fotos"
+                focused={focused}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="messages"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon
+                icon={<MessageSquare size={iconSize.lg} color={focused ? colors.primary[600] : colors.gray[400]} strokeWidth={focused ? 2.5 : 1.5} />}
+                label="Mensajes"
+                focused={focused}
+                badgeCount={unreadNotifications}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="team"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon
+                icon={<Users size={iconSize.lg} color={focused ? colors.primary[600] : colors.gray[400]} strokeWidth={focused ? 2.5 : 1.5} />}
+                label="Equipo"
+                focused={focused}
+              />
+            ),
+          }}
+        />
+      </Tabs>
+
+      {/* SideMenu vive fuera de los tabs para cubrir toda la pantalla */}
+      <SideMenu visible={isOpen} onClose={close} />
+    </View>
   );
 }
 
@@ -158,33 +130,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.gray[200],
   },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  iconWrapper: {
-    position: 'relative',
-  },
+  tabItem: { alignItems: 'center', justifyContent: 'center', gap: 4 },
+  iconWrapper: { position: 'relative' },
   badge: {
     position: 'absolute',
-    top: -4,
-    right: -6,
-    minWidth: 16,
-    height: 16,
+    top: -4, right: -6,
+    minWidth: 16, height: 16,
     backgroundColor: colors.error[500],
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 3,
   },
-  badgeText: {
-    fontSize: 9,
-    fontWeight: fontWeight.bold,
-    color: colors.white,
-  },
-  tabLabel: {
-    fontSize: fontSize.caption,
-    fontWeight: fontWeight.medium,
-  },
+  badgeText: { fontSize: 9, fontWeight: fontWeight.bold, color: colors.white },
+  tabLabel: { fontSize: fontSize.caption, fontWeight: fontWeight.medium },
 });

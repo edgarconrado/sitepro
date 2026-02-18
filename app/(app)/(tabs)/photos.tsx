@@ -2,36 +2,38 @@
  * SitePro — Photos Screen
  */
 
-import { Avatar } from '@components/ui/Avatar';
-import { FAB } from '@components/ui/FAB';
-import { colors } from '@theme/colors';
-import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
-import { formatDate, timeAgo } from '@utils/index';
+import React, { useState, useMemo } from 'react';
 import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  StatusBar,
+  Modal,
+  Dimensions,
+  ScrollView,
+  Image,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  X,
+  MapPin,
   Calendar,
-  Camera,
+  User,
   ChevronLeft,
   ChevronRight,
   Download,
-  MapPin,
   Share2,
   Trash2,
-  User,
-  X,
+  Camera,
 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
-import {
-  Dimensions,
-  FlatList,
-  Modal,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { colors } from '@theme/colors';
+import { fontSize, fontWeight, spacing, borderRadius, shadows, iconSize } from '@theme/tokens';
+import { Avatar } from '@components/ui/Avatar';
+import { FAB } from '@components/ui/FAB';
+import { TopBar } from '@components/layout/TopBar';
+import { formatDate, timeAgo } from '@utils/index';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COLUMN_GAP = spacing.sm;
@@ -218,7 +220,10 @@ export default function PhotosScreen() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
 
-      {/* Header */}
+      {/* Top Bar compartido */}
+      <TopBar />
+
+      {/* Filters Header */}
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={styles.screenTitle}>Fotos</Text>
@@ -270,7 +275,7 @@ export default function PhotosScreen() {
 
       {/* FAB — cámara púrpura */}
       <FAB
-        onPress={() => { }}
+        onPress={() => {}}
         color={colors.purple[500]}
         icon={<Camera size={24} color={colors.white} />}
       />

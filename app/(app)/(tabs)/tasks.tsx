@@ -2,6 +2,7 @@
  * SitePro — Tasks Screen
  */
 
+import { TopBar } from '@components/layout/TopBar';
 import { Avatar } from '@components/ui/Avatar';
 import { Badge } from '@components/ui/Badge';
 import { FAB } from '@components/ui/FAB';
@@ -15,7 +16,7 @@ import {
   shadows,
   spacing,
 } from '@theme/tokens';
-import type { Task, TaskStatus } from '@types/index';
+import type { Task, TaskPriority, TaskStatus } from '@types/index';
 import {
   formatShortDate,
   getTaskPriorityColors,
@@ -26,18 +27,22 @@ import {
   AlertTriangle,
   Calendar,
   CheckCircle2,
+  CheckCircle2 as CheckIcon,
+  ChevronDown,
   ChevronRight,
   Circle,
   Clock,
   MapPin,
   Search,
   Users,
-  X,
+  X
 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -61,11 +66,410 @@ const FILTERS: { label: string; value: FilterType }[] = [
 function StatusIcon({ status, size = iconSize.md }: { status: TaskStatus; size?: number }) {
   const sc = getTaskStatusColors(status);
   switch (status) {
-    case 'Urgente':     return <AlertCircle size={size} color={sc.icon} />;
+    case 'Urgente': return <AlertCircle size={size} color={sc.icon} />;
     case 'En Progreso': return <Clock size={size} color={sc.icon} />;
-    case 'Pendiente':   return <Circle size={size} color={sc.icon} />;
-    case 'Completada':  return <CheckCircle2 size={size} color={sc.icon} />;
+    case 'Pendiente': return <Circle size={size} color={sc.icon} />;
+    case 'Completada': return <CheckCircle2 size={size} color={sc.icon} />;
   }
+}
+
+
+// ─── Mock team para asignar ───────────────────────────────────
+const TEAM_OPTIONS = [
+  { id: '2', name: 'Juan Pérez', initials: 'JP', role: 'Electricista' },
+  { id: '3', name: 'María García', initials: 'MG', role: 'Plomero' },
+  { id: '4', name: 'Carlos Ruiz', initials: 'CR', role: 'Inspector' },
+  { id: '5', name: 'Ana López', initials: 'AL', role: 'Acabados' },
+  { id: '6', name: 'Roberto Díaz', initials: 'RD', role: 'Arquitecto' },
+  { id: '7', name: 'Laura Morales', initials: 'LM', role: 'Ingeniero' },
+];
+
+const PRIORITY_OPTIONS: { label: string; value: TaskPriority; color: string }[] = [
+  { label: 'Alta', value: 'Alta', color: colors.error[500] },
+  { label: 'Media', value: 'Media', color: colors.warning[500] },
+  { label: 'Baja', value: 'Baja', color: colors.gray[400] },
+];
+
+const STATUS_OPTIONS: { label: string; value: TaskStatus; color: string }[] = [
+  { label: 'Urgente', value: 'Urgente', color: colors.error[500] },
+  { label: 'En Progreso', value: 'En Progreso', color: colors.primary[600] },
+  { label: 'Pendiente', value: 'Pendiente', color: colors.warning[500] },
+];
+
+const LOCATION_OPTIONS = [
+  'Piso 1', 'Piso 2', 'Piso 3', 'Piso 4', 'Piso 5',
+  'Piso 6', 'Piso 7', 'Piso 8', 'Piso 9', 'Piso 10',
+  'Sótano', 'Planta Baja', 'Azotea', 'Fachada Norte',
+  'Fachada Sur', 'Cuarto de Máquinas', 'Lobby',
+];
+
+interface FormErrors {
+  title?: string;
+  description?: string;
+  assignedTo?: string;
+  location?: string;
+  deadline?: string;
+}
+
+// ─── Selector Row ─────────────────────────────────────────────
+function SelectorRow({
+  label, value, placeholder, onPress, error,
+}: { label: string; value: string; placeholder: string; onPress: () => void; error?: string }) {
+  return (
+    <View style={form.fieldWrapper}>
+      <Text style={form.label}>{label}</Text>
+      <TouchableOpacity
+        style={[form.selectorBtn, !!error && form.inputError]}
+        onPress={onPress}
+        activeOpacity={0.8}
+      >
+        <Text style={value ? form.selectorValue : form.selectorPlaceholder} numberOfLines={1}>
+          {value || placeholder}
+        </Text>
+        <ChevronDown size={16} color={colors.gray[400]} />
+      </TouchableOpacity>
+      {error && <Text style={form.errorText}>{error}</Text>}
+    </View>
+  );
+}
+
+// ─── Options Sheet ────────────────────────────────────────────
+function OptionsSheet<T extends string>({
+  visible, title, options, selected, onSelect, onClose, renderItem,
+}: {
+  visible: boolean;
+  title: string;
+  options: T[];
+  selected: T | null;
+  onSelect: (v: T) => void;
+  onClose: () => void;
+  renderItem?: (opt: T) => React.ReactNode;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={sheet.overlay}>
+        <View style={sheet.container}>
+          <View style={sheet.header}>
+            <Text style={sheet.title}>{title}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={iconSize.md} color={colors.gray[600]} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {options.map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                style={[sheet.option, selected === opt && sheet.optionSelected]}
+                onPress={() => { onSelect(opt); onClose(); }}
+                activeOpacity={0.8}
+              >
+                {renderItem ? renderItem(opt) : (
+                  <Text style={[sheet.optionText, selected === opt && sheet.optionTextSelected]}>
+                    {opt}
+                  </Text>
+                )}
+                {selected === opt && <CheckIcon size={16} color={colors.primary[600]} />}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── New Task Modal ───────────────────────────────────────────
+function NewTaskModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { addTask, currentProjectId } = useAppStore();
+
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<TaskPriority>('Media');
+  const [status, setStatus] = useState<TaskStatus>('Pendiente');
+  const [assignedTo, setAssignedTo] = useState<typeof TEAM_OPTIONS[0] | null>(null);
+  const [location, setLocation] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [errors, setErrors] = useState<FormErrors>({});
+
+  // Sheet visibility
+  const [showTeam, setShowTeam] = useState(false);
+  const [showLocation, setShowLocation] = useState(false);
+  const [showPriority, setShowPriority] = useState(false);
+  const [showStatus, setShowStatus] = useState(false);
+
+  const resetForm = useCallback(() => {
+    setTitle(''); setDescription(''); setPriority('Media');
+    setStatus('Pendiente'); setAssignedTo(null);
+    setLocation(''); setDeadline(''); setErrors({});
+  }, []);
+
+  const handleClose = () => { resetForm(); onClose(); };
+
+  const validate = (): boolean => {
+    const e: FormErrors = {};
+    if (!title.trim()) e.title = 'El título es requerido';
+    if (!description.trim()) e.description = 'La descripción es requerida';
+    if (!assignedTo) e.assignedTo = 'Selecciona un responsable';
+    if (!location) e.location = 'Selecciona una ubicación';
+    if (!deadline.trim()) e.deadline = 'Ingresa una fecha límite (dd/mm/aaaa)';
+    else {
+      const parts = deadline.split('/');
+      if (parts.length !== 3 || parts.some(p => isNaN(Number(p)))) {
+        e.deadline = 'Formato inválido. Usa dd/mm/aaaa';
+      }
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = () => {
+    if (!validate() || !assignedTo) return;
+
+    const [day, month, year] = deadline.split('/');
+    const isoDeadline = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+
+    const newTask: Task = {
+      id: Date.now().toString(),
+      projectId: currentProjectId,
+      title: title.trim(),
+      description: description.trim(),
+      status,
+      priority,
+      location,
+      createdAt: new Date().toISOString(),
+      deadline: isoDeadline,
+      assignedTo: {
+        id: assignedTo.id,
+        name: assignedTo.name,
+        email: `${assignedTo.name.split(' ')[0].toLowerCase()}@sitepro.com`,
+        role: assignedTo.role as any,
+        initials: assignedTo.initials,
+        isOnline: true,
+        activeTasks: 1,
+      },
+    };
+
+    addTask(newTask);
+    handleClose();
+  };
+
+  const formatDeadlineInput = (text: string) => {
+    const digits = text.replace(/\D/g, '').slice(0, 8);
+    let formatted = digits;
+    if (digits.length > 2) formatted = digits.slice(0, 2) + '/' + digits.slice(2);
+    if (digits.length > 4) formatted = formatted.slice(0, 5) + '/' + digits.slice(4);
+    setDeadline(formatted);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={nModal.overlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1, justifyContent: 'flex-end' }}
+        >
+          <View style={nModal.sheet}>
+            {/* Header */}
+            <View style={nModal.header}>
+              <TouchableOpacity onPress={handleClose} style={nModal.cancelBtn}>
+                <Text style={nModal.cancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <Text style={nModal.headerTitle}>Nueva Tarea</Text>
+              <TouchableOpacity onPress={handleSubmit} style={nModal.saveBtn}>
+                <Text style={nModal.saveText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={nModal.body}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Título */}
+              <View style={form.fieldWrapper}>
+                <Text style={form.label}>Título *</Text>
+                <TextInput
+                  style={[form.input, !!errors.title && form.inputError]}
+                  placeholder="Ej: Revisar instalación eléctrica piso 5"
+                  placeholderTextColor={colors.gray[400]}
+                  value={title}
+                  onChangeText={setTitle}
+                  maxLength={100}
+                />
+                {errors.title && <Text style={form.errorText}>{errors.title}</Text>}
+                <Text style={form.charCount}>{title.length}/100</Text>
+              </View>
+
+              {/* Descripción */}
+              <View style={form.fieldWrapper}>
+                <Text style={form.label}>Descripción *</Text>
+                <TextInput
+                  style={[form.input, form.textArea, !!errors.description && form.inputError]}
+                  placeholder="Describe el trabajo a realizar..."
+                  placeholderTextColor={colors.gray[400]}
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+                  numberOfLines={4}
+                  maxLength={500}
+                  textAlignVertical="top"
+                />
+                {errors.description && <Text style={form.errorText}>{errors.description}</Text>}
+                <Text style={form.charCount}>{description.length}/500</Text>
+              </View>
+
+              {/* Prioridad + Estado */}
+              <View style={form.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={form.label}>Prioridad</Text>
+                  <TouchableOpacity
+                    style={form.selectorBtn}
+                    onPress={() => setShowPriority(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[form.priorityDot, {
+                      backgroundColor: PRIORITY_OPTIONS.find(p => p.value === priority)?.color
+                    }]} />
+                    <Text style={form.selectorValue}>{priority}</Text>
+                    <ChevronDown size={14} color={colors.gray[400]} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={form.label}>Estado</Text>
+                  <TouchableOpacity
+                    style={form.selectorBtn}
+                    onPress={() => setShowStatus(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[form.priorityDot, {
+                      backgroundColor: STATUS_OPTIONS.find(s => s.value === status)?.color
+                    }]} />
+                    <Text style={form.selectorValue} numberOfLines={1}>{status}</Text>
+                    <ChevronDown size={14} color={colors.gray[400]} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Asignado a */}
+              <SelectorRow
+                label="Asignado a *"
+                value={assignedTo ? `${assignedTo.name} — ${assignedTo.role}` : ''}
+                placeholder="Selecciona un responsable"
+                onPress={() => setShowTeam(true)}
+                error={errors.assignedTo}
+              />
+
+              {/* Ubicación */}
+              <SelectorRow
+                label="Ubicación *"
+                value={location}
+                placeholder="Selecciona una ubicación"
+                onPress={() => setShowLocation(true)}
+                error={errors.location}
+              />
+
+              {/* Fecha límite */}
+              <View style={form.fieldWrapper}>
+                <Text style={form.label}>Fecha límite * (dd/mm/aaaa)</Text>
+                <TextInput
+                  style={[form.input, !!errors.deadline && form.inputError]}
+                  placeholder="ej: 28/02/2026"
+                  placeholderTextColor={colors.gray[400]}
+                  value={deadline}
+                  onChangeText={formatDeadlineInput}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
+                {errors.deadline && <Text style={form.errorText}>{errors.deadline}</Text>}
+              </View>
+
+              <View style={{ height: 32 }} />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+
+      {/* Sub-sheets */}
+      <OptionsSheet
+        visible={showTeam}
+        title="Asignar a"
+        options={TEAM_OPTIONS.map(m => m.id)}
+        selected={assignedTo?.id ?? null}
+        onSelect={(id) => setAssignedTo(TEAM_OPTIONS.find(m => m.id === id)!)}
+        onClose={() => setShowTeam(false)}
+        renderItem={(id) => {
+          const m = TEAM_OPTIONS.find(t => t.id === id)!;
+          return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 }}>
+              <View style={sheet.avatarCircle}>
+                <Text style={sheet.avatarText}>{m.initials}</Text>
+              </View>
+              <View>
+                <Text style={sheet.optionText}>{m.name}</Text>
+                <Text style={sheet.optionSubtext}>{m.role}</Text>
+              </View>
+            </View>
+          );
+        }}
+      />
+
+      <OptionsSheet
+        visible={showLocation}
+        title="Seleccionar ubicación"
+        options={LOCATION_OPTIONS as any}
+        selected={location as any}
+        onSelect={(v) => setLocation(v)}
+        onClose={() => setShowLocation(false)}
+      />
+
+      <Modal visible={showPriority} transparent animationType="slide">
+        <View style={sheet.overlay}>
+          <View style={sheet.container}>
+            <View style={sheet.header}>
+              <Text style={sheet.title}>Prioridad</Text>
+              <TouchableOpacity onPress={() => setShowPriority(false)}><X size={iconSize.md} color={colors.gray[600]} /></TouchableOpacity>
+            </View>
+            {PRIORITY_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                style={[sheet.option, priority === opt.value && sheet.optionSelected]}
+                onPress={() => { setPriority(opt.value); setShowPriority(false); }}
+                activeOpacity={0.8}
+              >
+                <View style={[form.priorityDot, { backgroundColor: opt.color, width: 12, height: 12 }]} />
+                <Text style={[sheet.optionText, priority === opt.value && sheet.optionTextSelected]}>{opt.label}</Text>
+                {priority === opt.value && <CheckIcon size={16} color={colors.primary[600]} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showStatus} transparent animationType="slide">
+        <View style={sheet.overlay}>
+          <View style={sheet.container}>
+            <View style={sheet.header}>
+              <Text style={sheet.title}>Estado inicial</Text>
+              <TouchableOpacity onPress={() => setShowStatus(false)}><X size={iconSize.md} color={colors.gray[600]} /></TouchableOpacity>
+            </View>
+            {STATUS_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                style={[sheet.option, status === opt.value && sheet.optionSelected]}
+                onPress={() => { setStatus(opt.value); setShowStatus(false); }}
+                activeOpacity={0.8}
+              >
+                <View style={[form.priorityDot, { backgroundColor: opt.color, width: 12, height: 12 }]} />
+                <Text style={[sheet.optionText, status === opt.value && sheet.optionTextSelected]}>{opt.label}</Text>
+                {status === opt.value && <CheckIcon size={16} color={colors.primary[600]} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
+    </Modal>
+  );
 }
 
 function TaskDetailModal({ task, onClose }: { task: Task | null; onClose: () => void }) {
@@ -188,6 +592,7 @@ export default function TasksScreen() {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('Todas');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showNewTask, setShowNewTask] = useState(false);
   const { tasks, currentProjectId } = useAppStore();
 
   const counts = useMemo(() => {
@@ -222,7 +627,10 @@ export default function TasksScreen() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
 
-      {/* Sticky Header */}
+      {/* Top Bar compartido */}
+      <TopBar />
+
+      {/* Filters Header */}
       <View style={styles.header}>
         <Text style={styles.screenTitle}>Tareas</Text>
         <View style={styles.searchContainer}>
@@ -277,8 +685,9 @@ export default function TasksScreen() {
         />
       )}
 
-      <FAB onPress={() => {}} />
+      <FAB onPress={() => setShowNewTask(true)} />
       <TaskDetailModal task={selectedTask} onClose={() => setSelectedTask(null)} />
+      <NewTaskModal visible={showNewTask} onClose={() => setShowNewTask(false)} />
     </SafeAreaView>
   );
 }
@@ -359,4 +768,118 @@ const tModal = StyleSheet.create({
   btnSecondaryText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.text.secondary },
   btnDanger: { backgroundColor: colors.error[50], paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
   btnDangerText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.error[500] },
+});
+
+// ─── Form Styles ──────────────────────────────────────────────
+const form = StyleSheet.create({
+  fieldWrapper: { marginBottom: spacing.base },
+  label: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.medium,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    fontSize: fontSize.base,
+    color: colors.text.primary,
+    backgroundColor: colors.white,
+    minHeight: 48,
+  },
+  textArea: { minHeight: 100, paddingTop: spacing.md },
+  inputError: { borderColor: colors.error[500], borderWidth: 1.5 },
+  errorText: { fontSize: fontSize.small, color: colors.error[500], marginTop: spacing.xs },
+  charCount: { fontSize: fontSize.small, color: colors.gray[400], textAlign: 'right', marginTop: 4 },
+  selectorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    minHeight: 48,
+    backgroundColor: colors.white,
+    gap: spacing.sm,
+  },
+  selectorValue: { flex: 1, fontSize: fontSize.base, color: colors.text.primary },
+  selectorPlaceholder: { flex: 1, fontSize: fontSize.base, color: colors.gray[400] },
+  priorityDot: { width: 10, height: 10, borderRadius: 5 },
+  row: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.base },
+});
+
+// ─── Sheet Styles ─────────────────────────────────────────────
+const sheet = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  container: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    maxHeight: '60%',
+    paddingBottom: 32,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.base,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[200],
+  },
+  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+    gap: spacing.md,
+  },
+  optionSelected: { backgroundColor: colors.primary[50] },
+  optionText: { flex: 1, fontSize: fontSize.base, color: colors.text.primary },
+  optionTextSelected: { color: colors.primary[700], fontWeight: fontWeight.semibold },
+  optionSubtext: { fontSize: fontSize.small, color: colors.text.tertiary },
+  avatarCircle: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: colors.primary[600],
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: colors.white },
+});
+
+// ─── New Task Modal Styles ────────────────────────────────────
+const nModal = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet: {
+    backgroundColor: colors.background.secondary,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    maxHeight: '95%',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.white,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+  },
+  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
+  cancelBtn: { padding: spacing.xs },
+  cancelText: { fontSize: fontSize.base, color: colors.gray[500] },
+  saveBtn: {
+    backgroundColor: colors.primary[600],
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.sm,
+  },
+  saveText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },
+  body: { padding: spacing.base },
 });

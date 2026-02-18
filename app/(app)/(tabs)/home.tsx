@@ -2,56 +2,49 @@
  * SitePro — Home Dashboard
  */
 
-import { Avatar } from '@components/ui/Avatar';
-import { Badge } from '@components/ui/Badge';
-import { useAppStore } from '@store/appStore';
-import { useAuthStore } from '@store/authStore';
-import { colors } from '@theme/colors';
+import React, { useState } from 'react';
 import {
-  borderRadius,
-  fontSize,
-  fontWeight,
-  iconSize,
-  shadows,
-  spacing,
-} from '@theme/tokens';
-import type { Task } from '@types/index';
-import {
-  formatShortDate,
-  getProjectStatusColors,
-  getTaskStatusColors,
-  timeAgo,
-} from '@utils/index';
-import {
-  AlertCircle,
-  Bell,
-  Building2,
-  Calendar,
-  Camera,
-  CheckCircle2,
-  CheckSquare,
-  ChevronRight,
-  FileText,
-  Home,
-  Map,
-  MapPin,
-  Menu,
-  Settings,
-  Users,
-  X,
-} from 'lucide-react-native';
-import React, { useRef, useState } from 'react';
-import {
-  Animated,
-  Modal,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
+  View,
   Text,
+  StyleSheet,
+  ScrollView,
   TouchableOpacity,
-  View
+  Modal,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  ChevronRight,
+  CheckSquare,
+  Camera,
+  Users,
+  Map,
+  AlertCircle,
+  CheckCircle2,
+  X,
+  Calendar,
+  MapPin,
+} from 'lucide-react-native';
+import { colors } from '@theme/colors';
+import {
+  fontSize,
+  fontWeight,
+  spacing,
+  borderRadius,
+  shadows,
+  iconSize,
+} from '@theme/tokens';
+import { useAppStore } from '@store/appStore';
+import { Avatar } from '@components/ui/Avatar';
+import { Badge } from '@components/ui/Badge';
+import { TopBar } from '@components/layout/TopBar';
+import {
+  formatShortDate,
+  timeAgo,
+  getTaskStatusColors,
+  getProjectStatusColors,
+} from '@utils/index';
+import type { Task } from '@types/index';
 
 // ─── Project Selector Modal ───────────────────────────────────
 function ProjectSelectorModal({
@@ -254,12 +247,10 @@ function TaskDetailModal({ task, onClose }: { task: Task | null; onClose: () => 
 
 // ─── Main Dashboard ───────────────────────────────────────────
 export default function HomeScreen() {
-  const [showMenu, setShowMenu] = useState(false);
   const [showProjectSelector, setShowProjectSelector] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  const { user } = useAuthStore();
-  const { currentProject, urgentTasks, activity, unreadNotifications } = useAppStore();
+  const { currentProject, urgentTasks, activity } = useAppStore();
 
   const project = currentProject();
   const urgent = urgentTasks();
@@ -268,22 +259,8 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
 
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => setShowMenu(true)} style={styles.iconBtn}>
-          <Menu size={iconSize.lg} color={colors.gray[800]} />
-        </TouchableOpacity>
-        <View style={styles.logoRow}>
-          <View style={styles.logoIcon}>
-            <Building2 size={16} color={colors.white} strokeWidth={2} />
-          </View>
-          <Text style={styles.logoText}>SitePro</Text>
-        </View>
-        <TouchableOpacity style={styles.iconBtn}>
-          <Bell size={iconSize.lg} color={colors.gray[800]} />
-          {unreadNotifications > 0 && <View style={styles.notifDot} />}
-        </TouchableOpacity>
-      </View>
+      {/* Top Bar compartido */}
+      <TopBar />
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
@@ -401,7 +378,6 @@ export default function HomeScreen() {
       </ScrollView>
 
       {/* Modals */}
-      <SideMenu visible={showMenu} onClose={() => setShowMenu(false)} />
       <ProjectSelectorModal visible={showProjectSelector} onClose={() => setShowProjectSelector(false)} />
       <TaskDetailModal task={selectedTask} onClose={() => setSelectedTask(null)} />
     </SafeAreaView>

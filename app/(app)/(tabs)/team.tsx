@@ -29,6 +29,7 @@ import { colors } from '@theme/colors';
 import { fontSize, fontWeight, spacing, borderRadius, shadows, iconSize } from '@theme/tokens';
 import { Avatar } from '@components/ui/Avatar';
 import { TopBar } from '@components/layout/TopBar';
+import { StaggerItem, ScreenEntrance } from '@components/ui/Animated';
 import { Badge } from '@components/ui/Badge';
 import type { User } from '@types/index';
 

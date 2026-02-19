@@ -1,39 +1,44 @@
 /**
  * SitePro — Tab Navigator
- * El SideMenu vive aquí para estar disponible en todas las tabs
+ * Solo íconos animados, sin texto
  */
 
-import React from 'react';
-import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
-import { Home, CheckSquare, Camera, MessageSquare, Users } from 'lucide-react-native';
-import { colors } from '@theme/colors';
-import { fontSize, fontWeight, touchSize, iconSize } from '@theme/tokens';
-import { useAppStore } from '@store/appStore';
 import { SideMenu } from '@components/layout/SideMenu';
+import { AnimatedTabIcon } from '@components/ui/Animated';
 import { useMenu } from '@hooks/useMenu';
+import { useAppStore } from '@store/appStore';
+import { colors } from '@theme/colors';
+import { fontWeight } from '@theme/tokens';
+import { Tabs } from 'expo-router';
+import { Camera, CheckSquare, Home, MessageSquare, Users } from 'lucide-react-native';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
-interface TabIconProps {
+const ICON_SIZE = 24;
+
+function TabIcon({
+  icon,
+  focused,
+  count,
+}: {
   icon: React.ReactNode;
-  label: string;
   focused: boolean;
-  badgeCount?: number;
-}
-
-function TabIcon({ icon, label, focused, badgeCount }: TabIconProps) {
+  count?: number;
+}) {
   return (
     <View style={styles.tabItem}>
-      <View style={styles.iconWrapper}>
-        {icon}
-        {badgeCount && badgeCount > 0 ? (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
-          </View>
-        ) : null}
-      </View>
-      <Text style={[styles.tabLabel, { color: focused ? colors.primary[600] : colors.gray[400] }]}>
-        {label}
-      </Text>
+      <AnimatedTabIcon focused={focused}>
+        <View style={styles.iconArea}>
+          {icon}
+          {count && count > 0 ? (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{count > 9 ? '9+' : count}</Text>
+            </View>
+          ) : null}
+        </View>
+      </AnimatedTabIcon>
+      {/* Punto activo debajo del ícono */}
+      <View style={[styles.dot, focused && styles.dotActive]} />
     </View>
   );
 }
@@ -42,23 +47,25 @@ export default function TabsLayout() {
   const unreadNotifications = useAppStore((s) => s.unreadNotifications);
   const { isOpen, close } = useMenu();
 
+  const ic = (focused: boolean) => focused ? colors.primary[600] : colors.gray[400];
+  const sw = (focused: boolean) => focused ? 2.5 : 1.5;
+
   return (
     <View style={{ flex: 1 }}>
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarStyle: styles.tabBar,
           tabBarShowLabel: false,
+          tabBarStyle: styles.tabBar,
+          tabBarItemStyle: styles.tabItemWrapper,
         }}
       >
         <Tabs.Screen
           name="home"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon
-                icon={<Home size={iconSize.lg} color={focused ? colors.primary[600] : colors.gray[400]} strokeWidth={focused ? 2.5 : 1.5} />}
-                label="Inicio"
-                focused={focused}
+              <TabIcon focused={focused}
+                icon={<Home size={ICON_SIZE} color={ic(focused)} strokeWidth={sw(focused)} />}
               />
             ),
           }}
@@ -67,10 +74,8 @@ export default function TabsLayout() {
           name="tasks"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon
-                icon={<CheckSquare size={iconSize.lg} color={focused ? colors.primary[600] : colors.gray[400]} strokeWidth={focused ? 2.5 : 1.5} />}
-                label="Tareas"
-                focused={focused}
+              <TabIcon focused={focused}
+                icon={<CheckSquare size={ICON_SIZE} color={ic(focused)} strokeWidth={sw(focused)} />}
               />
             ),
           }}
@@ -79,10 +84,8 @@ export default function TabsLayout() {
           name="photos"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon
-                icon={<Camera size={iconSize.lg} color={focused ? colors.primary[600] : colors.gray[400]} strokeWidth={focused ? 2.5 : 1.5} />}
-                label="Fotos"
-                focused={focused}
+              <TabIcon focused={focused}
+                icon={<Camera size={ICON_SIZE} color={ic(focused)} strokeWidth={sw(focused)} />}
               />
             ),
           }}
@@ -91,11 +94,8 @@ export default function TabsLayout() {
           name="messages"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon
-                icon={<MessageSquare size={iconSize.lg} color={focused ? colors.primary[600] : colors.gray[400]} strokeWidth={focused ? 2.5 : 1.5} />}
-                label="Mensajes"
-                focused={focused}
-                badgeCount={unreadNotifications}
+              <TabIcon focused={focused} count={unreadNotifications}
+                icon={<MessageSquare size={ICON_SIZE} color={ic(focused)} strokeWidth={sw(focused)} />}
               />
             ),
           }}
@@ -104,17 +104,14 @@ export default function TabsLayout() {
           name="team"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon
-                icon={<Users size={iconSize.lg} color={focused ? colors.primary[600] : colors.gray[400]} strokeWidth={focused ? 2.5 : 1.5} />}
-                label="Equipo"
-                focused={focused}
+              <TabIcon focused={focused}
+                icon={<Users size={ICON_SIZE} color={ic(focused)} strokeWidth={sw(focused)} />}
               />
             ),
           }}
         />
       </Tabs>
 
-      {/* SideMenu vive fuera de los tabs para cubrir toda la pantalla */}
       <SideMenu visible={isOpen} onClose={close} />
     </View>
   );
@@ -122,25 +119,40 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: touchSize.navBar,
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingHorizontal: 8,
     backgroundColor: colors.white,
     borderTopWidth: 1,
     borderTopColor: colors.gray[200],
+    height: 56,
   },
-  tabItem: { alignItems: 'center', justifyContent: 'center', gap: 4 },
-  iconWrapper: { position: 'relative' },
+  tabItemWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100%',
+  },
+  tabItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  iconArea: { position: 'relative' },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'transparent',
+  },
+  dotActive: {
+    backgroundColor: colors.primary[600],
+  },
   badge: {
     position: 'absolute',
-    top: -4, right: -6,
+    top: -4, right: -8,
     minWidth: 16, height: 16,
     backgroundColor: colors.error[500],
     borderRadius: 8,
     alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 3,
   },
-  badgeText: { fontSize: 9, fontWeight: fontWeight.bold, color: colors.white },
-  tabLabel: { fontSize: fontSize.caption, fontWeight: fontWeight.medium },
+  badgeText: { fontSize: 8, fontWeight: fontWeight.bold, color: colors.white },
 });

@@ -2,56 +2,59 @@
  * SitePro — Tasks Screen
  */
 
-import { TopBar } from '@components/layout/TopBar';
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+  FlatList,
+  StatusBar,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Search,
+  AlertCircle,
+  Clock,
+  Circle,
+  CheckCircle2,
+  ChevronRight,
+  X,
+  Calendar,
+  MapPin,
+  Users,
+  AlertTriangle,
+  FileText,
+  User,
+  ChevronDown,
+  CheckCircle2 as CheckIcon,
+} from 'lucide-react-native';
+import { colors } from '@theme/colors';
+import {
+  fontSize,
+  fontWeight,
+  spacing,
+  borderRadius,
+  shadows,
+  iconSize,
+} from '@theme/tokens';
+import { useAppStore } from '@store/appStore';
 import { Avatar } from '@components/ui/Avatar';
 import { Badge } from '@components/ui/Badge';
 import { FAB } from '@components/ui/FAB';
-import { useAppStore } from '@store/appStore';
-import { colors } from '@theme/colors';
-import {
-  borderRadius,
-  fontSize,
-  fontWeight,
-  iconSize,
-  shadows,
-  spacing,
-} from '@theme/tokens';
-import type { Task, TaskPriority, TaskStatus } from '@types/index';
+import { TopBar } from '@components/layout/TopBar';
+import { StaggerItem, ScreenEntrance, AnimatedFAB } from '@components/ui/Animated';
 import {
   formatShortDate,
-  getTaskPriorityColors,
   getTaskStatusColors,
+  getTaskPriorityColors,
 } from '@utils/index';
-import {
-  AlertCircle,
-  AlertTriangle,
-  Calendar,
-  CheckCircle2,
-  CheckCircle2 as CheckIcon,
-  ChevronDown,
-  ChevronRight,
-  Circle,
-  Clock,
-  MapPin,
-  Search,
-  Users,
-  X
-} from 'lucide-react-native';
-import React, { useCallback, useMemo, useState } from 'react';
-import {
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import type { Task, TaskStatus, TaskPriority } from '@types/index';
 
 type FilterType = 'Todas' | TaskStatus;
 
@@ -66,34 +69,34 @@ const FILTERS: { label: string; value: FilterType }[] = [
 function StatusIcon({ status, size = iconSize.md }: { status: TaskStatus; size?: number }) {
   const sc = getTaskStatusColors(status);
   switch (status) {
-    case 'Urgente': return <AlertCircle size={size} color={sc.icon} />;
+    case 'Urgente':     return <AlertCircle size={size} color={sc.icon} />;
     case 'En Progreso': return <Clock size={size} color={sc.icon} />;
-    case 'Pendiente': return <Circle size={size} color={sc.icon} />;
-    case 'Completada': return <CheckCircle2 size={size} color={sc.icon} />;
+    case 'Pendiente':   return <Circle size={size} color={sc.icon} />;
+    case 'Completada':  return <CheckCircle2 size={size} color={sc.icon} />;
   }
 }
 
 
 // ─── Mock team para asignar ───────────────────────────────────
 const TEAM_OPTIONS = [
-  { id: '2', name: 'Juan Pérez', initials: 'JP', role: 'Electricista' },
-  { id: '3', name: 'María García', initials: 'MG', role: 'Plomero' },
-  { id: '4', name: 'Carlos Ruiz', initials: 'CR', role: 'Inspector' },
-  { id: '5', name: 'Ana López', initials: 'AL', role: 'Acabados' },
-  { id: '6', name: 'Roberto Díaz', initials: 'RD', role: 'Arquitecto' },
-  { id: '7', name: 'Laura Morales', initials: 'LM', role: 'Ingeniero' },
+  { id: '2', name: 'Juan Pérez',    initials: 'JP', role: 'Electricista' },
+  { id: '3', name: 'María García',  initials: 'MG', role: 'Plomero'      },
+  { id: '4', name: 'Carlos Ruiz',   initials: 'CR', role: 'Inspector'    },
+  { id: '5', name: 'Ana López',     initials: 'AL', role: 'Acabados'     },
+  { id: '6', name: 'Roberto Díaz',  initials: 'RD', role: 'Arquitecto'   },
+  { id: '7', name: 'Laura Morales', initials: 'LM', role: 'Ingeniero'    },
 ];
 
 const PRIORITY_OPTIONS: { label: string; value: TaskPriority; color: string }[] = [
-  { label: 'Alta', value: 'Alta', color: colors.error[500] },
+  { label: 'Alta',  value: 'Alta',  color: colors.error[500]   },
   { label: 'Media', value: 'Media', color: colors.warning[500] },
-  { label: 'Baja', value: 'Baja', color: colors.gray[400] },
+  { label: 'Baja',  value: 'Baja',  color: colors.gray[400]    },
 ];
 
 const STATUS_OPTIONS: { label: string; value: TaskStatus; color: string }[] = [
-  { label: 'Urgente', value: 'Urgente', color: colors.error[500] },
+  { label: 'Urgente',     value: 'Urgente',     color: colors.error[500]   },
   { label: 'En Progreso', value: 'En Progreso', color: colors.primary[600] },
-  { label: 'Pendiente', value: 'Pendiente', color: colors.warning[500] },
+  { label: 'Pendiente',   value: 'Pendiente',   color: colors.warning[500] },
 ];
 
 const LOCATION_OPTIONS = [
@@ -182,20 +185,20 @@ function OptionsSheet<T extends string>({
 function NewTaskModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { addTask, currentProjectId } = useAppStore();
 
-  const [title, setTitle] = useState('');
+  const [title, setTitle]           = useState('');
   const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<TaskPriority>('Media');
-  const [status, setStatus] = useState<TaskStatus>('Pendiente');
+  const [priority, setPriority]     = useState<TaskPriority>('Media');
+  const [status, setStatus]         = useState<TaskStatus>('Pendiente');
   const [assignedTo, setAssignedTo] = useState<typeof TEAM_OPTIONS[0] | null>(null);
-  const [location, setLocation] = useState('');
-  const [deadline, setDeadline] = useState('');
-  const [errors, setErrors] = useState<FormErrors>({});
+  const [location, setLocation]     = useState('');
+  const [deadline, setDeadline]     = useState('');
+  const [errors, setErrors]         = useState<FormErrors>({});
 
   // Sheet visibility
-  const [showTeam, setShowTeam] = useState(false);
+  const [showTeam, setShowTeam]         = useState(false);
   const [showLocation, setShowLocation] = useState(false);
   const [showPriority, setShowPriority] = useState(false);
-  const [showStatus, setShowStatus] = useState(false);
+  const [showStatus, setShowStatus]     = useState(false);
 
   const resetForm = useCallback(() => {
     setTitle(''); setDescription(''); setPriority('Media');
@@ -207,11 +210,11 @@ function NewTaskModal({ visible, onClose }: { visible: boolean; onClose: () => v
 
   const validate = (): boolean => {
     const e: FormErrors = {};
-    if (!title.trim()) e.title = 'El título es requerido';
+    if (!title.trim())       e.title       = 'El título es requerido';
     if (!description.trim()) e.description = 'La descripción es requerida';
-    if (!assignedTo) e.assignedTo = 'Selecciona un responsable';
-    if (!location) e.location = 'Selecciona una ubicación';
-    if (!deadline.trim()) e.deadline = 'Ingresa una fecha límite (dd/mm/aaaa)';
+    if (!assignedTo)         e.assignedTo  = 'Selecciona un responsable';
+    if (!location)           e.location    = 'Selecciona una ubicación';
+    if (!deadline.trim())    e.deadline    = 'Ingresa una fecha límite (dd/mm/aaaa)';
     else {
       const parts = deadline.split('/');
       if (parts.length !== 3 || parts.some(p => isNaN(Number(p)))) {
@@ -226,25 +229,25 @@ function NewTaskModal({ visible, onClose }: { visible: boolean; onClose: () => v
     if (!validate() || !assignedTo) return;
 
     const [day, month, year] = deadline.split('/');
-    const isoDeadline = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const isoDeadline = `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`;
 
     const newTask: Task = {
-      id: Date.now().toString(),
-      projectId: currentProjectId,
-      title: title.trim(),
+      id:          Date.now().toString(),
+      projectId:   currentProjectId,
+      title:       title.trim(),
       description: description.trim(),
       status,
       priority,
       location,
-      createdAt: new Date().toISOString(),
-      deadline: isoDeadline,
+      createdAt:   new Date().toISOString(),
+      deadline:    isoDeadline,
       assignedTo: {
-        id: assignedTo.id,
-        name: assignedTo.name,
-        email: `${assignedTo.name.split(' ')[0].toLowerCase()}@sitepro.com`,
-        role: assignedTo.role as any,
-        initials: assignedTo.initials,
-        isOnline: true,
+        id:          assignedTo.id,
+        name:        assignedTo.name,
+        email:       `${assignedTo.name.split(' ')[0].toLowerCase()}@sitepro.com`,
+        role:        assignedTo.role as any,
+        initials:    assignedTo.initials,
+        isOnline:    true,
         activeTasks: 1,
       },
     };
@@ -256,8 +259,8 @@ function NewTaskModal({ visible, onClose }: { visible: boolean; onClose: () => v
   const formatDeadlineInput = (text: string) => {
     const digits = text.replace(/\D/g, '').slice(0, 8);
     let formatted = digits;
-    if (digits.length > 2) formatted = digits.slice(0, 2) + '/' + digits.slice(2);
-    if (digits.length > 4) formatted = formatted.slice(0, 5) + '/' + digits.slice(4);
+    if (digits.length > 2) formatted = digits.slice(0,2) + '/' + digits.slice(2);
+    if (digits.length > 4) formatted = formatted.slice(0,5) + '/' + digits.slice(4);
     setDeadline(formatted);
   };
 

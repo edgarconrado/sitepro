@@ -38,6 +38,7 @@ import { useAppStore } from '@store/appStore';
 import { Avatar } from '@components/ui/Avatar';
 import { Badge } from '@components/ui/Badge';
 import { TopBar } from '@components/layout/TopBar';
+import { StaggerItem, AnimatedNumber, ScreenEntrance, PressableScale } from '@components/ui/Animated';
 import {
   formatShortDate,
   timeAgo,
@@ -262,6 +263,7 @@ export default function HomeScreen() {
       {/* Top Bar compartido */}
       <TopBar />
 
+      <ScreenEntrance>
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
         {/* Project Header Card */}
@@ -273,17 +275,17 @@ export default function HomeScreen() {
           </View>
           <View style={styles.metricsRow}>
             <View style={styles.metricCard}>
-              <Text style={styles.metricValue}>{project?.totalTasks ?? 0}</Text>
+              <AnimatedNumber value={project?.totalTasks ?? 0} style={styles.metricValue} />
               <Text style={styles.metricLabel}>Tareas</Text>
             </View>
             <View style={styles.metricDivider} />
             <View style={styles.metricCard}>
-              <Text style={styles.metricValue}>{project?.progress ?? 0}%</Text>
+              <AnimatedNumber value={project?.progress ?? 0} suffix='%' style={styles.metricValue} />
               <Text style={styles.metricLabel}>Progreso</Text>
             </View>
             <View style={styles.metricDivider} />
             <View style={styles.metricCard}>
-              <Text style={styles.metricValue}>{project?.urgentTasks ?? 0}</Text>
+              <AnimatedNumber value={project?.urgentTasks ?? 0} style={styles.metricValue} />
               <Text style={styles.metricLabel}>Urgentes</Text>
             </View>
           </View>
@@ -321,11 +323,11 @@ export default function HomeScreen() {
               <Text style={styles.emptyText}>¡Sin tareas urgentes!</Text>
             </View>
           ) : (
-            urgent.map((task) => {
+            urgent.map((task, index) => {
               const sc = getTaskStatusColors(task.status);
               return (
+                <StaggerItem key={task.id} index={index}>
                 <TouchableOpacity
-                  key={task.id}
                   style={styles.taskCard}
                   onPress={() => setSelectedTask(task)}
                   activeOpacity={0.88}
@@ -343,6 +345,7 @@ export default function HomeScreen() {
                   </View>
                   <ChevronRight size={iconSize.md} color={colors.gray[400]} />
                 </TouchableOpacity>
+                </StaggerItem>
               );
             })
           )}
@@ -376,6 +379,8 @@ export default function HomeScreen() {
           </View>
         </View>
       </ScrollView>
+
+      </ScreenEntrance>
 
       {/* Modals */}
       <ProjectSelectorModal visible={showProjectSelector} onClose={() => setShowProjectSelector(false)} />

@@ -33,6 +33,7 @@ import { fontSize, fontWeight, spacing, borderRadius, shadows, iconSize } from '
 import { Avatar } from '@components/ui/Avatar';
 import { FAB } from '@components/ui/FAB';
 import { TopBar } from '@components/layout/TopBar';
+import { StaggerItem, ScreenEntrance } from '@components/ui/Animated';
 import { formatDate, timeAgo } from '@utils/index';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -268,7 +269,9 @@ export default function PhotosScreen() {
           columnWrapperStyle={styles.row}
           showsVerticalScrollIndicator={false}
           renderItem={({ item, index }) => (
-            <PhotoCard photo={item} onPress={() => handleOpen(index)} />
+            <StaggerItem index={index}>
+              <PhotoCard photo={item} onPress={() => handleOpen(index)} />
+            </StaggerItem>
           )}
         />
       )}

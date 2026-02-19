@@ -3,35 +3,35 @@
  * Responsive: usa porcentaje del ancho + safe area insets
  */
 
-import { Avatar } from '@components/ui/Avatar';
-import { useAuthStore } from '@store/authStore';
-import { colors } from '@theme/colors';
-import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
-import { router, usePathname } from 'expo-router';
-import {
-  Calendar,
-  Camera,
-  CheckSquare,
-  FileText,
-  Home,
-  LogOut,
-  Map,
-  MessageSquare,
-  Settings,
-  Users,
-  X,
-} from 'lucide-react-native';
 import React, { useEffect, useRef } from 'react';
 import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
   Animated,
   Dimensions,
   ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
 } from 'react-native';
+import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  X,
+  Home,
+  CheckSquare,
+  Camera,
+  MessageSquare,
+  Users,
+  Map,
+  FileText,
+  Calendar,
+  Settings,
+  LogOut,
+} from 'lucide-react-native';
+import { colors } from '@theme/colors';
+import { fontSize, fontWeight, spacing, borderRadius, shadows, iconSize } from '@theme/tokens';
+import { Avatar } from '@components/ui/Avatar';
+import { useAuthStore } from '@store/authStore';
 
 // Ancho del drawer: 80% de la pantalla, máximo 300px
 const DRAWER_WIDTH = Math.min(Dimensions.get('window').width * 0.80, 300);
@@ -42,17 +42,17 @@ interface SideMenuProps {
 }
 
 const MENU_ITEMS = [
-  { icon: Home, label: 'Inicio', href: '/(app)/(tabs)/home' as const, tab: 'home' },
-  { icon: CheckSquare, label: 'Tareas', href: '/(app)/(tabs)/tasks' as const, tab: 'tasks' },
-  { icon: Camera, label: 'Fotos', href: '/(app)/(tabs)/photos' as const, tab: 'photos' },
-  { icon: MessageSquare, label: 'Mensajes', href: '/(app)/(tabs)/messages' as const, tab: 'messages' },
-  { icon: Users, label: 'Equipo', href: '/(app)/(tabs)/team' as const, tab: 'team' },
+  { icon: Home,         label: 'Inicio',    href: '/(app)/(tabs)/home'     as const, tab: 'home'     },
+  { icon: CheckSquare,  label: 'Tareas',    href: '/(app)/(tabs)/tasks'    as const, tab: 'tasks'    },
+  { icon: Camera,       label: 'Fotos',     href: '/(app)/(tabs)/photos'   as const, tab: 'photos'   },
+  { icon: MessageSquare,label: 'Mensajes',  href: '/(app)/(tabs)/messages' as const, tab: 'messages' },
+  { icon: Users,        label: 'Equipo',    href: '/(app)/(tabs)/team'     as const, tab: 'team'     },
 ];
 
 const SECONDARY_ITEMS = [
-  { icon: Map, label: 'Planos' },
-  { icon: FileText, label: 'Documentos' },
-  { icon: Calendar, label: 'Calendario' },
+  { icon: Map,      label: 'Planos'      },
+  { icon: FileText, label: 'Documentos'  },
+  { icon: Calendar, label: 'Calendario'  },
 ];
 
 export function SideMenu({ visible, onClose }: SideMenuProps) {
@@ -60,7 +60,7 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
@@ -93,8 +93,6 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
     }
   }, [visible]);
 
-  if (!visible) return null;
-
   const handleNavigate = (href: string) => {
     onClose();
     setTimeout(() => router.push(href as any), 150);
@@ -108,7 +106,29 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
     }, 150);
   };
 
+  const handleSettings = () => {
+    onClose();
+    setTimeout(() => router.push('/(app)/settings' as any), 150);
+  };
+
+  const handlePlans = () => {
+    onClose();
+    setTimeout(() => router.push('/(app)/plans' as any), 150);
+  };
+
+  const handleDocuments = () => {
+    onClose();
+    setTimeout(() => router.push('/(app)/documents' as any), 150);
+  };
+
+  const handleCalendar = () => {
+    onClose();
+    setTimeout(() => router.push('/(app)/calendar' as any), 150);
+  };
+
   const isActive = (tab: string) => pathname.includes(tab);
+
+  if (!visible) return null;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -187,22 +207,25 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
           <Text style={[styles.sectionLabel, { marginTop: spacing.xs }]}>MÁS</Text>
           {SECONDARY_ITEMS.map((item) => {
             const Icon = item.icon;
+            const onPressItem = item.label === 'Planos' ? handlePlans : item.label === 'Documentos' ? handleDocuments : item.label === 'Calendario' ? handleCalendar : onClose;
             return (
               <TouchableOpacity
                 key={item.label}
                 style={styles.menuItem}
-                onPress={onClose}
+                onPress={onPressItem}
                 activeOpacity={0.7}
               >
-                <View style={styles.menuIconBg}>
-                  <Icon size={iconSize.md} color={colors.gray[400]} strokeWidth={1.8} />
+                <View style={[styles.menuIconBg, (item.label === 'Planos' || item.label === 'Documentos' || item.label === 'Calendario') && { backgroundColor: colors.primary[50] }]}>
+                  <Icon size={iconSize.md} color={(item.label === 'Planos' || item.label === 'Documentos' || item.label === 'Calendario') ? colors.primary[600] : colors.gray[400]} strokeWidth={1.8} />
                 </View>
-                <Text style={[styles.menuLabel, styles.menuLabelSecondary]}>
+                <Text style={[styles.menuLabel, (item.label === 'Planos' || item.label === 'Documentos' || item.label === 'Calendario') ? { color: colors.text.secondary } : styles.menuLabelSecondary]}>
                   {item.label}
                 </Text>
-                <View style={styles.comingBadge}>
-                  <Text style={styles.comingText}>Próximo</Text>
-                </View>
+                {item.label !== 'Planos' && item.label !== 'Documentos' && item.label !== 'Calendario' && (
+                  <View style={styles.comingBadge}>
+                    <Text style={styles.comingText}>Próximo</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -211,7 +234,7 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
         {/* Footer — respeta el safe area bottom */}
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.base) }]}>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.footerItem} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.footerItem} onPress={handleSettings} activeOpacity={0.7}>
             <Settings size={iconSize.md} color={colors.gray[500]} strokeWidth={1.8} />
             <Text style={styles.footerLabel}>Configuración</Text>
           </TouchableOpacity>

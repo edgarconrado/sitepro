@@ -4,50 +4,60 @@
  * Con búsqueda, filtros, favoritos y vista de detalle
  */
 
-import React, { useState, useMemo } from 'react';
+import { ScreenEntrance, StaggerItem } from '@components/ui/Animated';
+import { Badge } from '@components/ui/Badge';
+import { FAB } from '@components/ui/FAB';
+import { colors } from '@theme/colors';
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  ScrollView,
-  StatusBar,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  borderRadius,
+  fontSize, fontWeight,
+  iconSize,
+  shadows,
+  spacing,
+} from '@theme/tokens';
+import { formatDate, timeAgo } from '@utils/index';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import {
   ArrowLeft,
-  Search,
-  X,
-  Star,
-  FileText,
+  Building2,
+  Calendar,
+  ChevronRight,
+  Clock,
+  Download,
   FileCheck,
   FileCog,
   FileKey,
-  Download,
+  FileText,
+  ImagePlus,
+  Plus,
+  Search,
   Share2,
-  Calendar,
-  User,
-  Building2,
-  ChevronRight,
-  Eye,
-  Clock,
+  Star,
   Tag,
+  User,
+  X
 } from 'lucide-react-native';
-import { colors } from '@theme/colors';
+import React, { useMemo, useState } from 'react';
 import {
-  fontSize, fontWeight, spacing, borderRadius, shadows, iconSize,
-} from '@theme/tokens';
-import { Badge } from '@components/ui/Badge';
-import { StaggerItem, ScreenEntrance } from '@components/ui/Animated';
-import { formatDate, timeAgo } from '@utils/index';
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── Types ────────────────────────────────────────────────────
 type DocCategory = 'Contrato' | 'Reporte' | 'Especificación' | 'Permiso';
-type DocStatus   = 'Vigente' | 'En revisión' | 'Vencido' | 'Borrador';
+type DocStatus = 'Vigente' | 'En revisión' | 'Vencido' | 'Borrador';
 
 interface SiteDocument {
   id: string;
@@ -170,21 +180,21 @@ const INITIAL_DOCS: SiteDocument[] = [
 
 // ─── Config maps ──────────────────────────────────────────────
 const CATEGORY_CONFIG: Record<DocCategory, { icon: React.FC<any>; color: string; bg: string; pill: string }> = {
-  'Contrato':       { icon: FileCheck, color: colors.primary[600],  bg: colors.primary[50],  pill: colors.primary[600]  },
-  'Reporte':        { icon: FileText,  color: colors.success[600],  bg: colors.success[50],  pill: colors.success[600]  },
-  'Especificación': { icon: FileCog,   color: colors.purple[600],   bg: colors.purple[50],   pill: colors.purple[500]   },
-  'Permiso':        { icon: FileKey,   color: colors.orange[600],   bg: colors.orange[50],   pill: colors.orange[500]   },
+  'Contrato': { icon: FileCheck, color: colors.primary[600], bg: colors.primary[50], pill: colors.primary[600] },
+  'Reporte': { icon: FileText, color: colors.success[600], bg: colors.success[50], pill: colors.success[600] },
+  'Especificación': { icon: FileCog, color: colors.purple[600], bg: colors.purple[50], pill: colors.purple[500] },
+  'Permiso': { icon: FileKey, color: colors.orange[600], bg: colors.orange[50], pill: colors.orange[500] },
 };
 
 const STATUS_CONFIG: Record<DocStatus, { bg: string; text: string }> = {
-  'Vigente':     { bg: colors.success[100], text: colors.success[700] },
+  'Vigente': { bg: colors.success[100], text: colors.success[700] },
   'En revisión': { bg: colors.warning[100], text: colors.warning[700] },
-  'Vencido':     { bg: colors.error[100],   text: colors.error[700]   },
-  'Borrador':    { bg: colors.gray[100],    text: colors.gray[600]    },
+  'Vencido': { bg: colors.error[100], text: colors.error[700] },
+  'Borrador': { bg: colors.gray[100], text: colors.gray[600] },
 };
 
 const FILETYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  PDF:  { bg: '#FEE2E2', text: '#DC2626' },
+  PDF: { bg: '#FEE2E2', text: '#DC2626' },
   DOCX: { bg: '#DBEAFE', text: '#2563EB' },
   XLSX: { bg: '#D1FAE5', text: '#059669' },
 };
@@ -206,8 +216,8 @@ function DocDetailModal({
   if (!doc) return null;
 
   const cat = CATEGORY_CONFIG[doc.category];
-  const st  = STATUS_CONFIG[doc.status];
-  const ft  = FILETYPE_COLORS[doc.fileType];
+  const st = STATUS_CONFIG[doc.status];
+  const ft = FILETYPE_COLORS[doc.fileType];
   const CatIcon = cat.icon;
 
   return (
@@ -347,8 +357,8 @@ function DocCard({
   onToggleFavorite: () => void;
 }) {
   const cat = CATEGORY_CONFIG[doc.category];
-  const st  = STATUS_CONFIG[doc.status];
-  const ft  = FILETYPE_COLORS[doc.fileType];
+  const st = STATUS_CONFIG[doc.status];
+  const ft = FILETYPE_COLORS[doc.fileType];
   const CatIcon = cat.icon;
 
   return (
@@ -398,13 +408,347 @@ function DocCard({
   );
 }
 
+
+// ─── New Document Modal ───────────────────────────────────────
+const CAT_OPTIONS: DocCategory[] = ['Contratos', 'Reportes', 'Especificaciones', 'Permisos'];
+const FILETYPE_OPTIONS: ('PDF' | 'DOCX' | 'XLSX')[] = ['PDF', 'DOCX', 'XLSX'];
+const TAG_SUGGESTIONS = ['urgente', 'revisión', 'aprobado', 'pendiente', 'confidencial', 'externo', 'interno', 'legal'];
+
+const CAT_ICONS: Record<DocCategory, React.ReactNode> = {
+  'Contratos': <FileCheck size={16} color={colors.primary[600]} />,
+  'Reportes': <FileText size={16} color={colors.success[600]} />,
+  'Especificaciones': <FileCog size={16} color={colors.purple[500]} />,
+  'Permisos': <FileKey size={16} color={colors.orange[500]} />,
+};
+
+const NEW_CAT_COLORS = {
+  'Contratos': { bg: colors.primary[50], border: colors.primary[300], text: colors.primary[700] },
+  'Reportes': { bg: colors.success[50], border: colors.success[300], text: colors.success[700] },
+  'Especificaciones': { bg: colors.purple[50], border: colors.purple[300], text: colors.purple[700] },
+  'Permisos': { bg: colors.orange[50], border: colors.orange[300], text: colors.orange[700] },
+};
+
+const NEW_FILETYPE_COLORS = {
+  'PDF': { bg: '#FEE2E2', text: '#991B1B' },
+  'DOCX': { bg: '#DBEAFE', text: '#1E40AF' },
+  'XLSX': { bg: '#D1FAE5', text: '#065F46' },
+};
+
+function NewDocModal({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void;
+  onSave: (doc: SiteDocument) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [category, setCategory] = useState<DocCategory>('Contratos');
+  const [fileType, setFileType] = useState<'PDF' | 'DOCX' | 'XLSX'>('PDF');
+  const [company, setCompany] = useState('');
+  const [author, setAuthor] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [description, setDescription] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [fileUri, setFileUri] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [fileSize, setFileSize] = useState('');
+
+  const fmtDate = (t: string, setter: (v: string) => void) => {
+    const d = t.replace(/[^0-9]/g, '').slice(0, 8);
+    let f = d;
+    if (d.length > 4) f = d.slice(0, 4) + '-' + d.slice(4);
+    if (d.length > 6) f = f.slice(0, 7) + '-' + d.slice(6);
+    setter(f);
+  };
+
+  const toggleTag = (tag: string) =>
+    setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+
+  const addCustomTag = () => {
+    const t = tagInput.trim().toLowerCase().replace(/\s+/g, '-');
+    if (t && !tags.includes(t)) setTags(prev => [...prev, t]);
+    setTagInput('');
+  };
+
+  const pickFile = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsMultipleSelection: false,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setFileUri(result.assets[0].uri);
+        const parts = result.assets[0].uri.split('/');
+        setFileName(parts[parts.length - 1]);
+      }
+    } catch {
+      Alert.alert('Error', 'No se pudo seleccionar el archivo.');
+    }
+  };
+
+  const handleSave = () => {
+    if (!title.trim()) { Alert.alert('Requerido', 'El título es obligatorio.'); return; }
+    const now = new Date().toISOString();
+    const newDoc: SiteDocument = {
+      id: `doc-${Date.now()}`,
+      title: title.trim(),
+      category,
+      status: 'Vigente',
+      fileType,
+      fileSize: fileSize.trim() || '—',
+      version: 'v1.0',
+      author: author.trim() || 'Sin especificar',
+      company: company.trim() || 'Sin especificar',
+      createdAt: now,
+      updatedAt: now,
+      expiresAt: expiresAt.length === 10 ? expiresAt : undefined,
+      description: description.trim(),
+      tags,
+      isFavorite: false,
+    };
+    onSave(newDoc);
+  };
+
+  const cc = NEW_CAT_COLORS[category];
+  const ftc = NEW_FILETYPE_COLORS[fileType];
+
+  return (
+    <View style={nd.fullscreen}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+
+        {/* Header */}
+        <View style={nd.header}>
+          <TouchableOpacity onPress={onClose} style={nd.cancelBtn}>
+            <X size={18} color={colors.gray[500]} />
+            <Text style={nd.cancelText}>Cancelar</Text>
+          </TouchableOpacity>
+          <Text style={nd.headerTitle}>Nuevo Documento</Text>
+          <TouchableOpacity onPress={handleSave} style={nd.saveBtn}>
+            <Text style={nd.saveBtnText}>Agregar</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={nd.body}
+        >
+          {/* ── Título y categoría ── */}
+          <View style={nd.section}>
+            <Text style={nd.sectionTitle}>Identificación</Text>
+
+            <Text style={nd.label}>Título del documento *</Text>
+            <TextInput
+              style={nd.input}
+              placeholder="Ej: Contrato General de Obra"
+              placeholderTextColor={colors.gray[400]}
+              value={title}
+              onChangeText={setTitle}
+              maxLength={80}
+            />
+
+            <Text style={nd.label}>Categoría</Text>
+            <View style={nd.catRow}>
+              {CAT_OPTIONS.map(cat => {
+                const c = NEW_CAT_COLORS[cat];
+                const active = cat === category;
+                return (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[nd.catChip, active && { backgroundColor: c.bg, borderColor: c.border }]}
+                    onPress={() => setCategory(cat)}
+                    activeOpacity={0.8}
+                  >
+                    {CAT_ICONS[cat]}
+                    <Text style={[nd.catChipText, active && { color: c.text, fontWeight: fontWeight.bold }]}>
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* ── Tipo de archivo ── */}
+          <View style={nd.section}>
+            <Text style={nd.sectionTitle}>Tipo de archivo</Text>
+            <View style={nd.ftRow}>
+              {FILETYPE_OPTIONS.map(ft => {
+                const c = NEW_FILETYPE_COLORS[ft];
+                const active = ft === fileType;
+                return (
+                  <TouchableOpacity
+                    key={ft}
+                    style={[nd.ftChip, active && { backgroundColor: c.bg, borderColor: c.text }]}
+                    onPress={() => setFileType(ft)}
+                    activeOpacity={0.8}
+                  >
+                    <FileText size={16} color={active ? c.text : colors.gray[400]} />
+                    <Text style={[nd.ftChipText, active && { color: c.text, fontWeight: fontWeight.bold }]}>
+                      {ft}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={nd.label}>Tamaño del archivo</Text>
+            <TextInput
+              style={nd.input}
+              placeholder="Ej: 2.4 MB"
+              placeholderTextColor={colors.gray[400]}
+              value={fileSize}
+              onChangeText={setFileSize}
+              maxLength={10}
+            />
+          </View>
+
+          {/* ── Empresa y autor ── */}
+          <View style={nd.section}>
+            <Text style={nd.sectionTitle}>Responsables</Text>
+
+            <Text style={nd.label}>Empresa</Text>
+            <TextInput
+              style={nd.input}
+              placeholder="Ej: Constructora ABC"
+              placeholderTextColor={colors.gray[400]}
+              value={company}
+              onChangeText={setCompany}
+              maxLength={60}
+            />
+
+            <Text style={nd.label}>Autor</Text>
+            <TextInput
+              style={nd.input}
+              placeholder="Ej: Roberto Díaz"
+              placeholderTextColor={colors.gray[400]}
+              value={author}
+              onChangeText={setAuthor}
+              maxLength={40}
+            />
+          </View>
+
+          {/* ── Fecha de vencimiento ── */}
+          <View style={nd.section}>
+            <Text style={nd.sectionTitle}>Vigencia</Text>
+            <Text style={nd.label}>Fecha de vencimiento</Text>
+            <TextInput
+              style={nd.input}
+              placeholder="aaaa-mm-dd  (opcional)"
+              placeholderTextColor={colors.gray[400]}
+              value={expiresAt}
+              onChangeText={t => fmtDate(t, setExpiresAt)}
+              keyboardType="numeric"
+              maxLength={10}
+            />
+          </View>
+
+          {/* ── Descripción ── */}
+          <View style={nd.section}>
+            <Text style={nd.sectionTitle}>Descripción y etiquetas</Text>
+
+            <Text style={nd.label}>Descripción</Text>
+            <TextInput
+              style={[nd.input, nd.textarea]}
+              placeholder="Describe el contenido o propósito del documento..."
+              placeholderTextColor={colors.gray[400]}
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              maxLength={300}
+            />
+            <Text style={nd.charCount}>{description.length}/300</Text>
+
+            <Text style={nd.label}>Etiquetas</Text>
+            <View style={nd.tagGrid}>
+              {TAG_SUGGESTIONS.map(tag => {
+                const active = tags.includes(tag);
+                return (
+                  <TouchableOpacity
+                    key={tag}
+                    style={[nd.tagChip, active && nd.tagChipActive]}
+                    onPress={() => toggleTag(tag)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[nd.tagChipText, active && nd.tagChipTextActive]}>#{tag}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={nd.tagInputRow}>
+              <TextInput
+                style={nd.tagInput}
+                placeholder="Etiqueta personalizada..."
+                placeholderTextColor={colors.gray[400]}
+                value={tagInput}
+                onChangeText={setTagInput}
+                onSubmitEditing={addCustomTag}
+                returnKeyType="done"
+                maxLength={20}
+              />
+              {tagInput.length > 0 && (
+                <TouchableOpacity style={nd.tagAddBtn} onPress={addCustomTag}>
+                  <Plus size={16} color={colors.white} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {tags.length > 0 && (
+              <View style={nd.selectedTags}>
+                {tags.map(tag => (
+                  <TouchableOpacity key={tag} style={nd.selectedTag} onPress={() => toggleTag(tag)}>
+                    <Text style={nd.selectedTagText}>#{tag}</Text>
+                    <X size={10} color={colors.primary[600]} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* ── Archivo ── */}
+          <View style={nd.section}>
+            <Text style={nd.sectionTitle}>Archivo</Text>
+            {fileUri ? (
+              <View style={nd.filePreview}>
+                <View style={nd.filePreviewLeft}>
+                  <View style={[nd.fileTypeBadge, { backgroundColor: ftc.bg }]}>
+                    <Text style={[nd.fileTypeBadgeText, { color: ftc.text }]}>{fileType}</Text>
+                  </View>
+                  <Text style={nd.fileName} numberOfLines={1}>{fileName}</Text>
+                </View>
+                <TouchableOpacity onPress={() => { setFileUri(null); setFileName(null); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <X size={16} color={colors.gray[400]} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={nd.uploadBtn} onPress={pickFile} activeOpacity={0.85}>
+                <ImagePlus size={26} color={colors.primary[500]} />
+                <Text style={nd.uploadTitle}>Subir archivo</Text>
+                <Text style={nd.uploadSub}>PDF, DOCX o XLSX desde tu dispositivo</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────
 export default function DocumentsScreen() {
-  const [docs, setDocs]                 = useState<SiteDocument[]>(INITIAL_DOCS);
-  const [search, setSearch]             = useState('');
+  const [docs, setDocs] = useState<SiteDocument[]>(INITIAL_DOCS);
+  const [showNewDoc, setShowNewDoc] = useState(false);
+  const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<'Todos' | DocCategory>('Todos');
-  const [onlyFavorites, setOnlyFavorites]   = useState(false);
-  const [selectedDoc, setSelectedDoc]       = useState<SiteDocument | null>(null);
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState<SiteDocument | null>(null);
 
   const handleToggleFavorite = (id: string) => {
     setDocs(prev =>
@@ -443,130 +787,146 @@ export default function DocumentsScreen() {
   const favCount = docs.filter(d => d.isFavorite).length;
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
+    <>
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <ArrowLeft size={iconSize.md} color={colors.gray[700]} />
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>Documentos</Text>
-          <Text style={styles.headerSub}>{docs.length} documentos · Torre Empresarial Norte</Text>
-        </View>
-      </View>
-
-      {/* Search bar */}
-      <View style={styles.searchBar}>
-        <View style={styles.searchInput}>
-          <Search size={16} color={colors.gray[400]} />
-          <TextInput
-            style={styles.searchText}
-            placeholder="Buscar por nombre, autor, etiqueta..."
-            placeholderTextColor={colors.gray[400]}
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <X size={14} color={colors.gray[400]} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Favorites toggle */}
-        <TouchableOpacity
-          style={[styles.favToggle, onlyFavorites && styles.favToggleActive]}
-          onPress={() => setOnlyFavorites(v => !v)}
-          activeOpacity={0.8}
-        >
-          <Star
-            size={16}
-            color={onlyFavorites ? colors.warning[500] : colors.gray[400]}
-            fill={onlyFavorites ? colors.warning[400] : 'transparent'}
-          />
-          {favCount > 0 && (
-            <Text style={[styles.favCount, onlyFavorites && styles.favCountActive]}>
-              {favCount}
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Category filter pills */}
-      <View style={styles.filterBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
-          {CATEGORIES.map(cat => {
-            const active = activeCategory === cat;
-            const cfg = cat !== 'Todos' ? CATEGORY_CONFIG[cat as DocCategory] : null;
-            const pillColor = cfg ? cfg.pill : colors.primary[600];
-            return (
-              <TouchableOpacity
-                key={cat}
-                onPress={() => setActiveCategory(cat)}
-                style={[styles.pill, active && { backgroundColor: pillColor }]}
-                activeOpacity={0.75}
-              >
-                <Text style={[styles.pillText, active && styles.pillTextActive]}>
-                  {cat === 'Todos' ? `Todos (${counts.Todos})` : `${cat} (${counts[cat] ?? 0})`}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Stats strip */}
-      <View style={styles.statsStrip}>
-        {([
-          { label: 'Vigentes',     count: docs.filter(d => d.status === 'Vigente').length,     color: colors.success[600] },
-          { label: 'En revisión',  count: docs.filter(d => d.status === 'En revisión').length,  color: colors.warning[600] },
-          { label: 'Vencidos',     count: docs.filter(d => d.status === 'Vencido').length,      color: colors.error[600]   },
-          { label: 'Borradores',   count: docs.filter(d => d.status === 'Borrador').length,     color: colors.gray[500]    },
-        ] as const).map((s, i) => (
-          <View key={s.label} style={[styles.statItem, i < 3 && styles.statItemBorder]}>
-            <Text style={[styles.statCount, { color: s.color }]}>{s.count}</Text>
-            <Text style={styles.statLabel}>{s.label}</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <ArrowLeft size={iconSize.md} color={colors.gray[700]} />
+          </TouchableOpacity>
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerTitle}>Documentos</Text>
+            <Text style={styles.headerSub}>{docs.length} documentos · Torre Empresarial Norte</Text>
           </View>
-        ))}
-      </View>
+        </View>
 
-      {/* List */}
-      <ScreenEntrance>
-        <FlatList
-          data={filtered}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item, index }) => (
-            <StaggerItem index={index}>
-              <DocCard
-                doc={item}
-                onPress={() => setSelectedDoc(item)}
-                onToggleFavorite={() => handleToggleFavorite(item.id)}
-              />
-            </StaggerItem>
-          )}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <FileText size={44} color={colors.gray[200]} />
-              <Text style={styles.emptyTitle}>Sin resultados</Text>
-              <Text style={styles.emptySubtitle}>
-                {search ? `No se encontraron documentos para "${search}"` : 'No hay documentos en esta categoría'}
+        {/* Search bar */}
+        <View style={styles.searchBar}>
+          <View style={styles.searchInput}>
+            <Search size={16} color={colors.gray[400]} />
+            <TextInput
+              style={styles.searchText}
+              placeholder="Buscar por nombre, autor, etiqueta..."
+              placeholderTextColor={colors.gray[400]}
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={14} color={colors.gray[400]} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Favorites toggle */}
+          <TouchableOpacity
+            style={[styles.favToggle, onlyFavorites && styles.favToggleActive]}
+            onPress={() => setOnlyFavorites(v => !v)}
+            activeOpacity={0.8}
+          >
+            <Star
+              size={16}
+              color={onlyFavorites ? colors.warning[500] : colors.gray[400]}
+              fill={onlyFavorites ? colors.warning[400] : 'transparent'}
+            />
+            {favCount > 0 && (
+              <Text style={[styles.favCount, onlyFavorites && styles.favCountActive]}>
+                {favCount}
               </Text>
-            </View>
-          }
-        />
-      </ScreenEntrance>
+            )}
+          </TouchableOpacity>
+        </View>
 
-      {/* Detail Modal */}
-      <DocDetailModal
-        doc={selectedDoc}
-        onClose={() => setSelectedDoc(null)}
-        onToggleFavorite={handleToggleFavorite}
-      />
-    </SafeAreaView>
+        {/* Category filter pills */}
+        <View style={styles.filterBar}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
+            {CATEGORIES.map(cat => {
+              const active = activeCategory === cat;
+              const cfg = cat !== 'Todos' ? CATEGORY_CONFIG[cat as DocCategory] : null;
+              const pillColor = cfg ? cfg.pill : colors.primary[600];
+              return (
+                <TouchableOpacity
+                  key={cat}
+                  onPress={() => setActiveCategory(cat)}
+                  style={[styles.pill, active && { backgroundColor: pillColor }]}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.pillText, active && styles.pillTextActive]}>
+                    {cat === 'Todos' ? `Todos (${counts.Todos})` : `${cat} (${counts[cat] ?? 0})`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Stats strip */}
+        <View style={styles.statsStrip}>
+          {([
+            { label: 'Vigentes', count: docs.filter(d => d.status === 'Vigente').length, color: colors.success[600] },
+            { label: 'En revisión', count: docs.filter(d => d.status === 'En revisión').length, color: colors.warning[600] },
+            { label: 'Vencidos', count: docs.filter(d => d.status === 'Vencido').length, color: colors.error[600] },
+            { label: 'Borradores', count: docs.filter(d => d.status === 'Borrador').length, color: colors.gray[500] },
+          ] as const).map((s, i) => (
+            <View key={s.label} style={[styles.statItem, i < 3 && styles.statItemBorder]}>
+              <Text style={[styles.statCount, { color: s.color }]}>{s.count}</Text>
+              <Text style={styles.statLabel}>{s.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* List */}
+        <ScreenEntrance>
+          <FlatList
+            data={filtered}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item, index }) => (
+              <StaggerItem index={index}>
+                <DocCard
+                  doc={item}
+                  onPress={() => setSelectedDoc(item)}
+                  onToggleFavorite={() => handleToggleFavorite(item.id)}
+                />
+              </StaggerItem>
+            )}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <FileText size={44} color={colors.gray[200]} />
+                <Text style={styles.emptyTitle}>Sin resultados</Text>
+                <Text style={styles.emptySubtitle}>
+                  {search ? `No se encontraron documentos para "${search}"` : 'No hay documentos en esta categoría'}
+                </Text>
+              </View>
+            }
+          />
+        </ScreenEntrance>
+
+        {/* Detail Modal */}
+        <DocDetailModal
+          doc={selectedDoc}
+          onClose={() => setSelectedDoc(null)}
+          onToggleFavorite={handleToggleFavorite}
+        />
+
+        {/* FAB */}
+        <FAB
+          onPress={() => setShowNewDoc(true)}
+          icon={<Plus size={24} color={colors.white} />}
+        />
+
+      </SafeAreaView>
+
+      {showNewDoc && (
+        <NewDocModal
+          onClose={() => setShowNewDoc(false)}
+          onSave={(doc) => { setDocs(prev => [doc, ...prev]); setShowNewDoc(false); }}
+        />
+      )}
+    </>
   );
 }
 
@@ -592,7 +952,7 @@ const styles = StyleSheet.create({
   },
   headerInfo: { flex: 1 },
   headerTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.text.primary },
-  headerSub:   { fontSize: fontSize.small, color: colors.text.tertiary, marginTop: 2 },
+  headerSub: { fontSize: fontSize.small, color: colors.text.tertiary, marginTop: 2 },
 
   searchBar: {
     flexDirection: 'row',
@@ -687,13 +1047,13 @@ const detailModal = StyleSheet.create({
   },
   catIcon: { width: 44, height: 44, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   headerInfo: { flex: 1 },
-  headerCat:   { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.text.tertiary, marginBottom: 4 },
+  headerCat: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.text.tertiary, marginBottom: 4 },
   headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary, lineHeight: 20 },
   body: { padding: spacing.base },
   badgesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.base },
   descCard: { backgroundColor: colors.background.secondary, borderRadius: borderRadius.md, padding: spacing.base, marginBottom: spacing.base },
   descLabel: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.text.tertiary, marginBottom: spacing.xs },
-  descText:  { fontSize: fontSize.body, color: colors.text.secondary, lineHeight: 20 },
+  descText: { fontSize: fontSize.body, color: colors.text.secondary, lineHeight: 20 },
   infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.base },
   infoCard: { width: '47%', backgroundColor: colors.background.secondary, borderRadius: borderRadius.md, padding: spacing.md, gap: spacing.xs },
   infoLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -727,4 +1087,60 @@ const detailModal = StyleSheet.create({
     paddingVertical: spacing.md, borderRadius: borderRadius.md,
   },
   btnDownloadText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.white },
+});
+
+// ─── New Document Modal Styles ────────────────────────────────
+const nd = StyleSheet.create({
+  fullscreen: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.background.secondary, zIndex: 200 },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.base,
+    paddingTop: (StatusBar.currentHeight ?? 44) + spacing.sm,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    ...shadows.sm,
+  },
+  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
+  cancelBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  cancelText: { fontSize: fontSize.body, color: colors.gray[500] },
+  saveBtn: { backgroundColor: colors.primary[600], paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
+  saveBtnText: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.white },
+
+  body: { paddingBottom: 40 },
+  section: { backgroundColor: colors.white, padding: spacing.base, marginTop: spacing.sm },
+  sectionTitle: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: colors.text.tertiary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
+  label: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.secondary, marginTop: spacing.sm, marginBottom: spacing.xs },
+  input: { borderWidth: 1, borderColor: colors.gray[200], borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.md, fontSize: fontSize.base, color: colors.text.primary, backgroundColor: colors.background.secondary },
+  textarea: { minHeight: 80, textAlignVertical: 'top', paddingTop: spacing.md },
+  charCount: { fontSize: 10, color: colors.gray[400], textAlign: 'right', marginTop: 4 },
+
+  catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
+  catChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: colors.gray[200], backgroundColor: colors.gray[50] },
+  catChipText: { fontSize: fontSize.small, color: colors.gray[500] },
+
+  ftRow: { flexDirection: 'row', gap: spacing.md },
+  ftChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingVertical: spacing.md, borderRadius: borderRadius.md, borderWidth: 1.5, borderColor: colors.gray[200], backgroundColor: colors.gray[50] },
+  ftChipText: { fontSize: fontSize.body, color: colors.gray[500] },
+
+  tagGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
+  tagChip: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 1, borderRadius: borderRadius.full, borderWidth: 1, borderColor: colors.gray[200], backgroundColor: colors.gray[50] },
+  tagChipActive: { backgroundColor: colors.primary[50], borderColor: colors.primary[300] },
+  tagChipText: { fontSize: fontSize.small, color: colors.gray[500] },
+  tagChipTextActive: { color: colors.primary[700], fontWeight: fontWeight.semibold },
+  tagInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  tagInput: { flex: 1, borderWidth: 1, borderColor: colors.gray[200], borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.md, fontSize: fontSize.base, color: colors.text.primary, backgroundColor: colors.background.secondary },
+  tagAddBtn: { width: 40, height: 40, borderRadius: borderRadius.md, backgroundColor: colors.primary[600], alignItems: 'center', justifyContent: 'center' },
+  selectedTags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
+  selectedTag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primary[50], borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 1, borderWidth: 1, borderColor: colors.primary[200] },
+  selectedTagText: { fontSize: fontSize.small, color: colors.primary[700], fontWeight: fontWeight.medium },
+
+  uploadBtn: { borderWidth: 1.5, borderColor: colors.primary[200], borderStyle: 'dashed', borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xl, gap: spacing.sm, backgroundColor: colors.primary[50] },
+  uploadTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primary[700] },
+  uploadSub: { fontSize: fontSize.small, color: colors.primary[400] },
+  filePreview: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.primary[200], borderRadius: borderRadius.md, padding: spacing.base, backgroundColor: colors.primary[50] },
+  filePreviewLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
+  fileTypeBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: borderRadius.sm },
+  fileTypeBadgeText: { fontSize: 11, fontWeight: fontWeight.bold },
+  fileName: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.primary[700], flex: 1 },
 });

@@ -3,8 +3,8 @@
  * Maneja proyectos, tareas y actividad reciente
  */
 
+import type { ActivityItem, Notification, Project, Task } from '@types/index';
 import { create } from 'zustand';
-import type { Project, Task, ActivityItem, Notification } from '@types/index';
 
 // ─── Mock Data ────────────────────────────────────────────────
 const MOCK_PROJECTS: Project[] = [
@@ -168,6 +168,66 @@ const MOCK_ACTIVITY: ActivityItem[] = [
   },
 ];
 
+
+const MOCK_NOTIFICATIONS: Notification[] = [
+  {
+    id: 'n1',
+    type: 'task',
+    title: 'Tarea urgente asignada',
+    description: 'Juan Pérez te asignó "Revisar instalación eléctrica piso 5"',
+    createdAt: '2026-02-20T08:30:00Z',
+    isRead: false,
+    resourceId: '1',
+    resourceType: 'task',
+  },
+  {
+    id: 'n2',
+    type: 'message',
+    title: 'Nuevo mensaje',
+    description: 'Ana López: "Los planos del piso 3 están listos para revisión"',
+    createdAt: '2026-02-20T07:15:00Z',
+    isRead: false,
+    resourceType: 'message',
+  },
+  {
+    id: 'n3',
+    type: 'photo',
+    title: 'Fotos agregadas',
+    description: 'Carlos Ruiz subió 4 fotos al proyecto Torre Residencial Norte',
+    createdAt: '2026-02-19T16:45:00Z',
+    isRead: false,
+    resourceType: 'photo',
+  },
+  {
+    id: 'n4',
+    type: 'system',
+    title: 'Permiso por vencer',
+    description: 'El permiso de vía pública vence en 5 días (25 Feb 2026)',
+    createdAt: '2026-02-19T09:00:00Z',
+    isRead: true,
+    resourceType: 'project',
+  },
+  {
+    id: 'n5',
+    type: 'task',
+    title: 'Tarea completada',
+    description: 'María García completó "Inspección de plomería zona norte"',
+    createdAt: '2026-02-18T14:20:00Z',
+    isRead: true,
+    resourceId: '2',
+    resourceType: 'task',
+  },
+  {
+    id: 'n6',
+    type: 'system',
+    title: 'Nuevo proyecto asignado',
+    description: 'Fuiste agregado al proyecto Centro Comercial Plaza como Inspector',
+    createdAt: '2026-02-17T10:00:00Z',
+    isRead: true,
+    resourceType: 'project',
+  },
+];
+
 // ─── Store ────────────────────────────────────────────────────
 interface AppStore {
   // Estado
@@ -188,6 +248,8 @@ interface AppStore {
   setCurrentProject: (projectId: string) => void;
   updateTaskStatus: (taskId: string, status: Task['status']) => void;
   addTask: (task: Task) => void;
+  addProject: (project: Project) => void;
+  markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
 }
 
@@ -197,8 +259,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   currentProjectId: '1',
   tasks: MOCK_TASKS,
   activity: MOCK_ACTIVITY,
-  notifications: [],
-  unreadNotifications: 3,
+  notifications: MOCK_NOTIFICATIONS,
+  unreadNotifications: MOCK_NOTIFICATIONS.filter(n => !n.isRead).length,
   isLoading: false,
 
   // Getters
@@ -227,11 +289,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
       tasks: state.tasks.map((t) =>
         t.id === taskId
           ? {
-              ...t,
-              status,
-              completedAt:
-                status === 'Completada' ? new Date().toISOString() : t.completedAt,
-            }
+            ...t,
+            status,
+            completedAt:
+              status === 'Completada' ? new Date().toISOString() : t.completedAt,
+          }
           : t
       ),
     }));
@@ -241,7 +303,29 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => ({ tasks: [task, ...state.tasks] }));
   },
 
+  addProject: (project: Project) => {
+    set((state) => ({
+      projects: [...state.projects, project],
+      currentProjectId: project.id,
+    }));
+  },
+
+  markNotificationRead: (id: string) => {
+    set((state) => {
+      const notifications = state.notifications.map((n) =>
+        n.id === id ? { ...n, isRead: true } : n
+      );
+      return {
+        notifications,
+        unreadNotifications: notifications.filter((n) => !n.isRead).length,
+      };
+    });
+  },
+
   markAllNotificationsRead: () => {
-    set({ unreadNotifications: 0 });
+    set((state) => ({
+      notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
+      unreadNotifications: 0,
+    }));
   },
 }));

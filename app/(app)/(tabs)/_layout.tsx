@@ -4,6 +4,7 @@
  */
 
 import { SideMenu } from '@components/layout/SideMenu';
+import { TopBar } from '@components/layout/TopBar';
 import { AnimatedTabIcon } from '@components/ui/Animated';
 import { useMenu } from '@hooks/useMenu';
 import { useAppStore } from '@store/appStore';
@@ -52,6 +53,7 @@ export default function TabsLayout() {
 
   return (
     <View style={{ flex: 1 }}>
+      <TopBar />
       <Tabs
         screenOptions={{
           headerShown: false,

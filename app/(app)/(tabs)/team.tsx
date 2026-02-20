@@ -2,36 +2,34 @@
  * SitePro — Team Screen
  */
 
-import React, { useState, useMemo } from 'react';
+import { Avatar } from '@components/ui/Avatar';
+import { Badge } from '@components/ui/Badge';
+import { colors } from '@theme/colors';
+import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
+import type { User } from '@types/index';
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  TextInput,
-  StatusBar,
-  Modal,
-  ScrollView,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  Search,
-  X,
-  Phone,
-  MessageSquare,
   CheckSquare,
   Mail,
   MapPin,
+  MessageSquare,
+  Phone,
+  Search,
   Star,
+  X,
 } from 'lucide-react-native';
-import { colors } from '@theme/colors';
-import { fontSize, fontWeight, spacing, borderRadius, shadows, iconSize } from '@theme/tokens';
-import { Avatar } from '@components/ui/Avatar';
-import { TopBar } from '@components/layout/TopBar';
-import { StaggerItem, ScreenEntrance } from '@components/ui/Animated';
-import { Badge } from '@components/ui/Badge';
-import type { User } from '@types/index';
+import React, { useMemo, useState } from 'react';
+import {
+  FlatList,
+  Modal,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── Mock team data ───────────────────────────────────────────
 const TEAM_MEMBERS: (User & { specialty: string; completedTasks: number; email: string; zone: string })[] = [
@@ -204,9 +202,6 @@ export default function TeamScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
-
-      {/* Top Bar compartido */}
-      <TopBar />
 
       {/* Search Header */}
       <View style={styles.header}>

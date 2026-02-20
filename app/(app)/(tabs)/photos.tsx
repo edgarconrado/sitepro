@@ -2,39 +2,52 @@
  * SitePro — Photos Screen
  */
 
-import React, { useState, useMemo } from 'react';
+import { StaggerItem } from '@components/ui/Animated';
+import { Avatar } from '@components/ui/Avatar';
+import { FAB } from '@components/ui/FAB';
+import { colors } from '@theme/colors';
+import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
+import { formatDate, timeAgo } from '@utils/index';
+import { CameraType, CameraView, FlashMode, useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  StatusBar,
-  Modal,
-  Dimensions,
-  ScrollView,
-  Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  X,
-  MapPin,
+  AlignLeft,
   Calendar,
-  User,
+  Camera,
   ChevronLeft,
   ChevronRight,
   Download,
+  ImagePlus,
+  MapPin,
+  Plus,
   Share2,
+  SwitchCamera,
+  Tag,
   Trash2,
-  Camera,
+  User,
+  X,
+  Zap,
+  ZapOff,
 } from 'lucide-react-native';
-import { colors } from '@theme/colors';
-import { fontSize, fontWeight, spacing, borderRadius, shadows, iconSize } from '@theme/tokens';
-import { Avatar } from '@components/ui/Avatar';
-import { FAB } from '@components/ui/FAB';
-import { TopBar } from '@components/layout/TopBar';
-import { StaggerItem, ScreenEntrance } from '@components/ui/Animated';
-import { formatDate, timeAgo } from '@utils/index';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COLUMN_GAP = spacing.sm;
@@ -50,7 +63,8 @@ interface MockPhoto {
   capturedAt: string;
   notes?: string;
   tags: string[];
-  color: string; // placeholder color when no real image
+  color: string;
+  isReal?: boolean; // true if captured from real camera/gallery
 }
 
 const PHOTOS: MockPhoto[] = [
@@ -84,22 +98,32 @@ function PhotoViewer({
     <Modal visible animationType="fade" statusBarTranslucent>
       <View style={viewer.container}>
         {/* Top bar */}
-        <SafeAreaView style={viewer.topBar}>
-          <TouchableOpacity onPress={onClose} style={viewer.iconBtn}>
+        <View style={viewer.topBar}>
+          <TouchableOpacity onPress={onClose} style={viewer.iconBtn} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}>
             <X size={iconSize.md} color={colors.white} />
           </TouchableOpacity>
           <Text style={viewer.topTitle} numberOfLines={1}>{photo.location}</Text>
           <TouchableOpacity style={viewer.iconBtn}>
             <Share2 size={iconSize.md} color={colors.white} />
           </TouchableOpacity>
-        </SafeAreaView>
+        </View>
 
         {/* Image area */}
         <View style={viewer.imageArea}>
           {/* Placeholder with color + icon */}
           <View style={[viewer.imagePlaceholder, { backgroundColor: photo.color }]}>
-            <Camera size={48} color={`${colors.white}40`} strokeWidth={1} />
-            <Text style={viewer.imagePlaceholderText}>{photo.location}</Text>
+            {photo.uri ? (
+              <Image
+                source={{ uri: photo.uri }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="contain"
+              />
+            ) : (
+              <>
+                <Camera size={48} color={`${colors.white}40`} strokeWidth={1} />
+                <Text style={viewer.imagePlaceholderText}>{photo.location}</Text>
+              </>
+            )}
           </View>
 
           {/* Prev / Next */}
@@ -179,9 +203,17 @@ function PhotoViewer({
 function PhotoCard({ photo, onPress }: { photo: MockPhoto; onPress: () => void }) {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
-      {/* Image placeholder */}
+      {/* Image or placeholder */}
       <View style={[styles.image, { backgroundColor: photo.color }]}>
-        <Camera size={28} color={`${colors.white}30`} strokeWidth={1} />
+        {photo.uri ? (
+          <Image
+            source={{ uri: photo.uri }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        ) : (
+          <Camera size={28} color={`${colors.white}30`} strokeWidth={1} />
+        )}
       </View>
 
       {/* Overlay */}
@@ -202,15 +234,448 @@ function PhotoCard({ photo, onPress }: { photo: MockPhoto; onPress: () => void }
 // ─── Filter Bar ───────────────────────────────────────────────
 const ZONES = ['Todas', 'Zona A', 'Baños', 'Estructura', 'Fachada', 'Planta Baja', 'Sótano', 'Techo', 'Circulación'];
 
+
+// ─── Photo Form Modal ─────────────────────────────────────────
+const ZONE_OPTIONS = ['Zona A', 'Baños', 'Estructura', 'Fachada', 'Planta Baja', 'Sótano', 'Techo', 'Circulación', 'General'];
+const TAG_SUGGESTIONS = ['eléctrico', 'plomería', 'estructura', 'fachada', 'acabados', 'seguridad', 'losa', 'escalera', 'mecánico', 'urgente'];
+
+function PhotoFormModal({
+  uri,
+  onSave,
+  onDiscard,
+}: {
+  uri: string;
+  onSave: (data: { location: string; zone: string; notes: string; tags: string[] }) => void;
+  onDiscard: () => void;
+}) {
+  const [location, setLocation] = useState('');
+  const [zone, setZone] = useState('General');
+  const [notes, setNotes] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [showZonePicker, setShowZonePicker] = useState(false);
+
+  const toggleTag = (tag: string) => {
+    setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  };
+
+  const addCustomTag = () => {
+    const t = tagInput.trim().toLowerCase().replace(/\s+/g, '-');
+    if (t && !tags.includes(t)) setTags(prev => [...prev, t]);
+    setTagInput('');
+  };
+
+  const handleSave = () => {
+    onSave({ location: location.trim(), zone, notes: notes.trim(), tags });
+  };
+
+  return (
+    <View style={photoForm.fullscreen}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        {/* Header */}
+        <View style={photoForm.header}>
+          <TouchableOpacity onPress={onDiscard} style={photoForm.discardBtn}>
+            <X size={18} color={colors.gray[600]} />
+            <Text style={photoForm.discardText}>Descartar</Text>
+          </TouchableOpacity>
+          <Text style={photoForm.headerTitle}>Detalles de la foto</Text>
+          <TouchableOpacity onPress={handleSave} style={photoForm.saveBtn}>
+            <Text style={photoForm.saveBtnText}>Guardar</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView
+          style={photoForm.body}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
+          {/* Photo preview */}
+          <View style={photoForm.previewContainer}>
+            <Image source={{ uri }} style={photoForm.preview} resizeMode="cover" />
+            <View style={photoForm.previewBadge}>
+              <Camera size={12} color={colors.white} />
+              <Text style={photoForm.previewBadgeText}>Nueva foto</Text>
+            </View>
+          </View>
+
+          {/* Location */}
+          <View style={photoForm.field}>
+            <View style={photoForm.fieldLabelRow}>
+              <MapPin size={14} color={colors.primary[500]} />
+              <Text style={photoForm.fieldLabel}>Ubicación</Text>
+              <Text style={photoForm.optional}>opcional</Text>
+            </View>
+            <TextInput
+              style={photoForm.input}
+              placeholder="Ej: Piso 5, Eje 3, Columna B-4..."
+              placeholderTextColor={colors.gray[400]}
+              value={location}
+              onChangeText={setLocation}
+              maxLength={60}
+            />
+          </View>
+
+          {/* Zone picker */}
+          <View style={photoForm.field}>
+            <View style={photoForm.fieldLabelRow}>
+              <User size={14} color={colors.primary[500]} />
+              <Text style={photoForm.fieldLabel}>Zona del proyecto</Text>
+            </View>
+            <TouchableOpacity
+              style={photoForm.zonePicker}
+              onPress={() => setShowZonePicker(v => !v)}
+              activeOpacity={0.8}
+            >
+              <Text style={photoForm.zonePickerText}>{zone}</Text>
+              <ChevronRight
+                size={16}
+                color={colors.gray[400]}
+                style={{ transform: [{ rotate: showZonePicker ? '90deg' : '0deg' }] }}
+              />
+            </TouchableOpacity>
+            {showZonePicker && (
+              <View style={photoForm.zoneList}>
+                {ZONE_OPTIONS.map(z => (
+                  <TouchableOpacity
+                    key={z}
+                    style={[photoForm.zoneOption, zone === z && photoForm.zoneOptionActive]}
+                    onPress={() => { setZone(z); setShowZonePicker(false); }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[photoForm.zoneOptionText, zone === z && photoForm.zoneOptionTextActive]}>
+                      {z}
+                    </Text>
+                    {zone === z && <Text style={{ color: colors.primary[600] }}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Notes */}
+          <View style={photoForm.field}>
+            <View style={photoForm.fieldLabelRow}>
+              <AlignLeft size={14} color={colors.primary[500]} />
+              <Text style={photoForm.fieldLabel}>Notas</Text>
+              <Text style={photoForm.optional}>opcional</Text>
+            </View>
+            <TextInput
+              style={[photoForm.input, photoForm.textarea]}
+              placeholder="Describe el avance, observaciones o puntos de atención..."
+              placeholderTextColor={colors.gray[400]}
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              maxLength={300}
+            />
+            <Text style={photoForm.charCount}>{notes.length}/300</Text>
+          </View>
+
+          {/* Tags */}
+          <View style={photoForm.field}>
+            <View style={photoForm.fieldLabelRow}>
+              <Tag size={14} color={colors.primary[500]} />
+              <Text style={photoForm.fieldLabel}>Etiquetas</Text>
+              <Text style={photoForm.optional}>opcional</Text>
+            </View>
+
+            {/* Suggestions */}
+            <View style={photoForm.tagGrid}>
+              {TAG_SUGGESTIONS.map(tag => {
+                const active = tags.includes(tag);
+                return (
+                  <TouchableOpacity
+                    key={tag}
+                    style={[photoForm.tagChip, active && photoForm.tagChipActive]}
+                    onPress={() => toggleTag(tag)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[photoForm.tagChipText, active && photoForm.tagChipTextActive]}>
+                      #{tag}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Custom tag input */}
+            <View style={photoForm.tagInputRow}>
+              <TextInput
+                style={photoForm.tagInput}
+                placeholder="Agregar etiqueta personalizada..."
+                placeholderTextColor={colors.gray[400]}
+                value={tagInput}
+                onChangeText={setTagInput}
+                onSubmitEditing={addCustomTag}
+                returnKeyType="done"
+                maxLength={20}
+              />
+              {tagInput.length > 0 && (
+                <TouchableOpacity style={photoForm.tagAddBtn} onPress={addCustomTag}>
+                  <Plus size={16} color={colors.white} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Selected tags */}
+            {tags.length > 0 && (
+              <View style={photoForm.selectedTags}>
+                {tags.map(tag => (
+                  <TouchableOpacity
+                    key={tag}
+                    style={photoForm.selectedTag}
+                    onPress={() => toggleTag(tag)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={photoForm.selectedTagText}>#{tag}</Text>
+                    <X size={10} color={colors.primary[600]} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────
+
+// ─── Camera Modal ─────────────────────────────────────────────
+function CameraModal({ onClose, onCapture }: {
+  onClose: () => void;
+  onCapture: (uri: string) => void;
+}) {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [facing, setFacing] = useState<CameraType>('back');
+  const [flash, setFlash] = useState<FlashMode>('off');
+  const [capturing, setCapturing] = useState(false);
+  const [ready, setReady] = useState(false);
+  const cameraRef = useRef<CameraView>(null);
+
+  // Small delay so the camera initializes after navigation settles
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 100);
+    return () => clearTimeout(t);
+  }, []);
+
+  const handleCapture = async () => {
+    if (!cameraRef.current || capturing || !ready) return;
+    setCapturing(true);
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.6,
+        base64: false,
+        skipProcessing: true, // faster on Android
+      });
+      if (photo?.uri) onCapture(photo.uri);
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo capturar la foto. Intenta de nuevo.');
+      setCapturing(false);
+    }
+  };
+
+  if (!permission) {
+    return (
+      <View style={cam.fullscreen}>
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
+        <ActivityIndicator size="large" color={colors.white} />
+      </View>
+    );
+  }
+
+  if (!permission.granted) {
+    return (
+      <View style={cam.fullscreen}>
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
+        <Camera size={48} color="rgba(255,255,255,0.5)" />
+        <Text style={cam.permTitle}>Permiso de cámara requerido</Text>
+        <Text style={cam.permSub}>SitePro necesita acceso a la cámara para capturar fotos del proyecto.</Text>
+        <TouchableOpacity style={cam.permBtn} onPress={requestPermission}>
+          <Text style={cam.permBtnText}>Permitir acceso</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={cam.permCancel} onPress={onClose}>
+          <Text style={cam.permCancelText}>Cancelar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={cam.fullscreen}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <CameraView
+        ref={cameraRef}
+        style={cam.camera}
+        facing={facing}
+        flash={flash}
+        onCameraReady={() => setReady(true)}
+      >
+        {/* Top controls */}
+        <View style={cam.topBar}>
+          <TouchableOpacity style={cam.iconBtn} onPress={onClose}>
+            <X size={22} color={colors.white} />
+          </TouchableOpacity>
+          <Text style={cam.topTitle}>Capturar foto</Text>
+          <TouchableOpacity
+            style={cam.iconBtn}
+            onPress={() => setFlash(f => f === 'off' ? 'on' : 'off')}
+          >
+            {flash === 'off'
+              ? <ZapOff size={22} color={colors.white} />
+              : <Zap size={22} color={colors.warning[400]} />
+            }
+          </TouchableOpacity>
+        </View>
+
+        {/* Grid overlay */}
+        <View style={cam.gridOverlay} pointerEvents="none">
+          <View style={[cam.gridLine, { top: '33%', width: '100%', height: 1 }]} />
+          <View style={[cam.gridLine, { top: '66%', width: '100%', height: 1 }]} />
+          <View style={[cam.gridCol, { left: '33%' }]} />
+          <View style={[cam.gridCol, { left: '66%' }]} />
+        </View>
+
+        {/* Bottom controls */}
+        <View style={cam.bottomBar}>
+          <TouchableOpacity
+            style={cam.sideBtn}
+            onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}
+          >
+            <SwitchCamera size={26} color={colors.white} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[cam.shutter, capturing && cam.shutterCapturing]}
+            onPress={handleCapture}
+            activeOpacity={0.85}
+            disabled={capturing || !ready}
+          >
+            {capturing
+              ? <ActivityIndicator color={colors.primary[400]} />
+              : <View style={cam.shutterInner} />
+            }
+          </TouchableOpacity>
+
+          <View style={cam.sideBtn} />
+        </View>
+      </CameraView>
+    </View>
+  );
+}
+
 export default function PhotosScreen() {
   const [activeZone, setActiveZone] = useState('Todas');
+  const [photos, setPhotos] = useState<MockPhoto[]>(PHOTOS);
+  const [showCameraOptions, setShowCameraOptions] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [showPermDialog, setShowPermDialog] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'camera' | 'gallery' | null>(null);
+  const [pendingUri, setPendingUri] = useState<string | null>(null);
+  const pendingGallery = useRef(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const filtered = useMemo(() => {
-    if (activeZone === 'Todas') return PHOTOS;
-    return PHOTOS.filter((p) => p.zone === activeZone);
-  }, [activeZone]);
+    if (activeZone === 'Todas') return photos;
+    return photos.filter((p) => p.zone === activeZone);
+  }, [activeZone, photos]);
+
+  const handleAddPhoto = (uri: string, meta?: { location: string; zone: string; notes: string; tags: string[] }) => {
+    const newPhoto: MockPhoto = {
+      id: `photo-${Date.now()}`,
+      uri,
+      location: meta?.location || 'Sin ubicación',
+      zone: meta?.zone || 'General',
+      uploadedBy: { name: 'Tú', initials: 'TU' },
+      capturedAt: new Date().toISOString(),
+      notes: meta?.notes || '',
+      tags: meta?.tags?.length ? meta.tags : [],
+      color: '#1E3A5F',
+      isReal: true,
+    };
+    setPhotos(prev => [newPhoto, ...prev]);
+  };
+
+  const openGalleryAfterPermission = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: false,
+        quality: 0.5,
+        exif: false,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setPendingUri(result.assets[0].uri);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo abrir la galería. Intenta de nuevo.');
+    }
+  };
+
+  const handleOpenGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso requerido', 'Activa el acceso a la galería en los ajustes del dispositivo.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: false,
+        quality: 0.5,
+        exif: false,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setPendingUri(result.assets[0].uri);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo abrir la galería.');
+    }
+  };
+
+  const handleOpenCameraBtn = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso requerido', 'Activa el acceso a la cámara en los ajustes del dispositivo.');
+        return;
+      }
+      setShowCamera(true);
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo abrir la cámara.');
+    }
+  };
+
+  const handleGrantPermission = async () => {
+    setShowPermDialog(false);
+    const action = pendingAction;
+    setPendingAction(null);
+    // Wait for dialog close animation
+    setTimeout(async () => {
+      if (action === 'gallery') {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status === 'granted') {
+          await openGalleryAfterPermission();
+        } else {
+          Alert.alert('Permiso denegado', 'Para agregar fotos de tu galería, activa el permiso en Ajustes del dispositivo.', [{ text: 'Entendido' }]);
+        }
+      } else if (action === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status === 'granted') {
+          setShowCamera(true);
+        } else {
+          Alert.alert('Permiso denegado', 'Para usar la cámara, activa el permiso en Ajustes del dispositivo.', [{ text: 'Entendido' }]);
+        }
+      }
+    }, 400);
+  };
 
   const handleOpen = (index: number) => setSelectedIndex(index);
   const handleClose = () => setSelectedIndex(null);
@@ -218,83 +683,208 @@ export default function PhotosScreen() {
   const handleNext = () => setSelectedIndex((i) => (i !== null && i < filtered.length - 1 ? i + 1 : i));
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
+    <>
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
 
-      {/* Top Bar compartido */}
-      <TopBar />
+        {/* Filters Header */}
+        <View style={styles.header}>
+          <View style={styles.titleRow}>
+            <Text style={styles.screenTitle}>Fotos</Text>
+            <Text style={styles.photoCount}>{photos.length} fotos</Text>
+          </View>
 
-      {/* Filters Header */}
-      <View style={styles.header}>
-        <View style={styles.titleRow}>
-          <Text style={styles.screenTitle}>Fotos</Text>
-          <Text style={styles.photoCount}>{PHOTOS.length} fotos</Text>
+          {/* Zone filter pills */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersContent}
+            style={styles.filtersScroll}
+          >
+            {ZONES.map((zone) => (
+              <TouchableOpacity
+                key={zone}
+                onPress={() => setActiveZone(zone)}
+                style={[styles.pill, activeZone === zone && styles.pillActive]}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.pillText, activeZone === zone && styles.pillTextActive]}>
+                  {zone}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
-        {/* Zone filter pills */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersContent}
-          style={styles.filtersScroll}
-        >
-          {ZONES.map((zone) => (
-            <TouchableOpacity
-              key={zone}
-              onPress={() => setActiveZone(zone)}
-              style={[styles.pill, activeZone === zone && styles.pillActive]}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.pillText, activeZone === zone && styles.pillTextActive]}>
-                {zone}
+        {/* Grid */}
+        {filtered.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Camera size={40} color={colors.gray[300]} />
+            <Text style={styles.emptyTitle}>Sin fotos</Text>
+            <Text style={styles.emptySubtitle}>No hay fotos en esta zona todavía</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => item.id}
+            numColumns={2}
+            contentContainerStyle={styles.grid}
+            columnWrapperStyle={styles.row}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item, index }) => (
+              <StaggerItem index={index}>
+                <PhotoCard photo={item} onPress={() => handleOpen(index)} />
+              </StaggerItem>
+            )}
+          />
+        )}
+
+        {/* FAB — cámara */}
+        <FAB
+          onPress={() => {
+            Alert.alert(
+              'Agregar foto',
+              '¿Cómo quieres agregar la foto?',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: '📷 Cámara', onPress: handleOpenCameraBtn },
+                { text: '🖼️ Galería', onPress: handleOpenGallery },
+              ]
+            );
+          }}
+          color={colors.purple[500]}
+          icon={<Camera size={24} color={colors.white} />}
+        />
+
+        {/* Viewer */}
+        {selectedIndex !== null && filtered[selectedIndex] && (
+          <PhotoViewer
+            photo={filtered[selectedIndex]}
+            onClose={handleClose}
+            onPrev={handlePrev}
+            onNext={handleNext}
+            hasPrev={selectedIndex > 0}
+            hasNext={selectedIndex < filtered.length - 1}
+          />
+        )}
+
+        {/* Permission Dialog */}
+        <Modal visible={showPermDialog} transparent animationType="fade">
+          <View style={permDlg.overlay}>
+            <View style={permDlg.card}>
+              {/* Icon */}
+              <View style={permDlg.iconRow}>
+                <View style={[permDlg.iconBg, { backgroundColor: pendingAction === 'camera' ? colors.primary[50] : colors.success[50] }]}>
+                  {pendingAction === 'camera'
+                    ? <Camera size={28} color={colors.primary[600]} />
+                    : <ImagePlus size={28} color={colors.success[600]} />
+                  }
+                </View>
+              </View>
+
+              {/* Title */}
+              <Text style={permDlg.title}>
+                {pendingAction === 'camera' ? 'Permiso de cámara' : 'Permiso de galería'}
               </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
 
-      {/* Grid */}
-      {filtered.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Camera size={40} color={colors.gray[300]} />
-          <Text style={styles.emptyTitle}>Sin fotos</Text>
-          <Text style={styles.emptySubtitle}>No hay fotos en esta zona todavía</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          contentContainerStyle={styles.grid}
-          columnWrapperStyle={styles.row}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item, index }) => (
-            <StaggerItem index={index}>
-              <PhotoCard photo={item} onPress={() => handleOpen(index)} />
-            </StaggerItem>
-          )}
+              {/* Description */}
+              <Text style={permDlg.desc}>
+                {pendingAction === 'camera'
+                  ? 'SitePro necesita acceso a la cámara para que puedas capturar fotos del avance de obra directamente desde la app.'
+                  : 'SitePro necesita acceso a tu galería para que puedas seleccionar fotos existentes y agregarlas al proyecto.'
+                }
+              </Text>
+
+              {/* What we use it for */}
+              <View style={permDlg.reasonBox}>
+                <Text style={permDlg.reasonTitle}>¿Para qué se usa?</Text>
+                {(pendingAction === 'camera' ? [
+                  '📸 Capturar el avance de obra en tiempo real',
+                  '🔒 Las fotos solo se guardan en tu proyecto',
+                  '🚫 No accedemos a otras apps ni datos',
+                ] : [
+                  '🖼️ Seleccionar fotos del proyecto desde tu galería',
+                  '🔒 Solo accedemos a las fotos que tú elijas',
+                  '🚫 No modificamos ni eliminamos tus fotos',
+                ]).map((item, i) => (
+                  <Text key={i} style={permDlg.reasonItem}>{item}</Text>
+                ))}
+              </View>
+
+              {/* Buttons */}
+              <TouchableOpacity style={permDlg.btnPrimary} onPress={handleGrantPermission} activeOpacity={0.88}>
+                <Text style={permDlg.btnPrimaryText}>
+                  {pendingAction === 'camera' ? 'Permitir cámara' : 'Permitir galería'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={permDlg.btnSecondary} onPress={() => { setShowPermDialog(false); setPendingAction(null); }} activeOpacity={0.8}>
+                <Text style={permDlg.btnSecondaryText}>Ahora no</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Camera Options Sheet */}
+        {showCameraOptions && (
+          <View style={camOpts.absoluteOverlay}>
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowCameraOptions(false)} activeOpacity={1} />
+            <View style={camOpts.sheet}>
+              <View style={camOpts.handle} />
+              <Text style={camOpts.title}>Agregar foto</Text>
+
+              <TouchableOpacity
+                style={camOpts.option}
+                onPress={handleOpenCameraBtn}
+                activeOpacity={0.85}
+              >
+                <View style={[camOpts.optIcon, { backgroundColor: colors.primary[50] }]}>
+                  <Camera size={22} color={colors.primary[600]} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={camOpts.optTitle}>Tomar foto</Text>
+                  <Text style={camOpts.optSub}>Usa la cámara del dispositivo</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[camOpts.option, { borderBottomWidth: 0 }]}
+                onPress={handleOpenGallery}
+                activeOpacity={0.85}
+              >
+                <View style={[camOpts.optIcon, { backgroundColor: colors.success[50] }]}>
+                  <ImagePlus size={22} color={colors.success[600]} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={camOpts.optTitle}>Elegir de galería</Text>
+                  <Text style={camOpts.optSub}>Selecciona una foto existente</Text>
+                </View>
+              </TouchableOpacity>
+
+              <View style={{ height: 32 }} />
+            </View>
+          </View>
+        )}
+
+
+      </SafeAreaView>
+
+      {/* Photo Form — appears after capture/pick */}
+      {pendingUri && (
+        <PhotoFormModal
+          uri={pendingUri}
+          onSave={(data) => { handleAddPhoto(pendingUri, data); setPendingUri(null); }}
+          onDiscard={() => setPendingUri(null)}
         />
       )}
 
-      {/* FAB — cámara púrpura */}
-      <FAB
-        onPress={() => {}}
-        color={colors.purple[500]}
-        icon={<Camera size={24} color={colors.white} />}
-      />
-
-      {/* Viewer */}
-      {selectedIndex !== null && filtered[selectedIndex] && (
-        <PhotoViewer
-          photo={filtered[selectedIndex]}
-          onClose={handleClose}
-          onPrev={handlePrev}
-          onNext={handleNext}
-          hasPrev={selectedIndex > 0}
-          hasNext={selectedIndex < filtered.length - 1}
+      {/* Camera — rendered outside SafeAreaView to cover full screen */}
+      {showCamera && (
+        <CameraModal
+          onClose={() => setShowCamera(false)}
+          onCapture={(uri) => { setShowCamera(false); setTimeout(() => setPendingUri(uri), 300); }}
         />
       )}
-    </SafeAreaView>
+    </>
   );
 }
 
@@ -368,7 +958,9 @@ const viewer = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.md,
+    paddingTop: (StatusBar.currentHeight ?? 44) + spacing.sm,
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   iconBtn: { padding: spacing.sm, borderRadius: borderRadius.full, backgroundColor: 'rgba(255,255,255,0.1)' },
   topTitle: { flex: 1, textAlign: 'center', fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white, marginHorizontal: spacing.sm },
@@ -418,4 +1010,224 @@ const viewer = StyleSheet.create({
 
   deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingVertical: spacing.md, borderRadius: borderRadius.md, backgroundColor: colors.error[50] },
   deleteBtnText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.error[500] },
+});
+
+// ─── Camera Styles ────────────────────────────────────────────
+const cam = StyleSheet.create({
+  fullscreen: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    zIndex: 999,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  camera: { ...StyleSheet.absoluteFillObject },
+  center: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#000', padding: spacing.xl, gap: spacing.base,
+  },
+  permTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.white, textAlign: 'center' },
+  permSub: { fontSize: fontSize.body, color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 22 },
+  permBtn: { backgroundColor: colors.primary[600], borderRadius: borderRadius.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.base, marginTop: spacing.sm },
+  permBtnText: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.white },
+  permCancel: { paddingVertical: spacing.md },
+  permCancelText: { fontSize: fontSize.base, color: 'rgba(255,255,255,0.5)' },
+  topBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: 52, paddingHorizontal: spacing.base, paddingBottom: spacing.md,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  topTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },
+  iconBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  gridOverlay: { ...StyleSheet.absoluteFillObject },
+  gridLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.2)' },
+  gridCol: { position: 'absolute', width: 1, top: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.2)' },
+  bottomBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.xl, paddingBottom: 52, paddingTop: spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  sideBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  shutter: {
+    width: 72, height: 72, borderRadius: 36,
+    borderWidth: 4, borderColor: colors.white,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  shutterCapturing: { borderColor: colors.primary[400] },
+  shutterInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.white },
+});
+
+// ─── Camera Options Sheet Styles ──────────────────────────────
+const camOpts = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  absoluteOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 100, flexDirection: 'column' },
+  sheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl,
+    paddingHorizontal: spacing.base,
+  },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.gray[200], alignSelf: 'center', marginTop: spacing.sm, marginBottom: spacing.md },
+  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary, marginBottom: spacing.md },
+  option: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.base,
+    paddingVertical: spacing.base,
+    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+  },
+  optIcon: { width: 48, height: 48, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center' },
+  optTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.text.primary },
+  optSub: { fontSize: fontSize.small, color: colors.text.tertiary, marginTop: 2 },
+});
+
+// ─── Permission Dialog Styles ─────────────────────────────────
+const permDlg = StyleSheet.create({
+  overlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center', justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    width: '100%',
+    alignItems: 'center',
+    gap: spacing.md,
+    ...shadows.xl,
+  },
+  iconRow: { marginTop: spacing.sm },
+  iconBg: {
+    width: 72, height: 72, borderRadius: 36,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: colors.gray[100],
+  },
+  title: {
+    fontSize: fontSize.xl, fontWeight: fontWeight.bold,
+    color: colors.text.primary, textAlign: 'center',
+  },
+  desc: {
+    fontSize: fontSize.body, color: colors.text.secondary,
+    textAlign: 'center', lineHeight: 22,
+  },
+  reasonBox: {
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.base,
+    width: '100%',
+    gap: spacing.sm,
+  },
+  reasonTitle: {
+    fontSize: fontSize.body, fontWeight: fontWeight.bold,
+    color: colors.text.primary, marginBottom: spacing.xs,
+  },
+  reasonItem: {
+    fontSize: fontSize.body, color: colors.text.secondary, lineHeight: 20,
+  },
+  btnPrimary: {
+    backgroundColor: colors.primary[600],
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.base,
+    width: '100%', alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  btnPrimaryText: {
+    fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.white,
+  },
+  btnSecondary: {
+    paddingVertical: spacing.sm,
+    width: '100%', alignItems: 'center',
+  },
+  btnSecondaryText: {
+    fontSize: fontSize.base, color: colors.text.tertiary,
+  },
+});
+
+// ─── Photo Form Styles ────────────────────────────────────────
+const photoForm = StyleSheet.create({
+  fullscreen: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.background.secondary,
+    zIndex: 998,
+  },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+    paddingTop: 52,
+    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    ...shadows.sm,
+  },
+  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
+  discardBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  discardText: { fontSize: fontSize.body, color: colors.gray[500] },
+  saveBtn: { backgroundColor: colors.primary[600], paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
+  saveBtnText: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.white },
+  body: { flex: 1 },
+
+  previewContainer: { position: 'relative', height: 220, backgroundColor: colors.gray[900] },
+  preview: { width: '100%', height: '100%' },
+  previewBadge: {
+    position: 'absolute', bottom: spacing.sm, left: spacing.sm,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm, paddingVertical: 3,
+  },
+  previewBadgeText: { fontSize: 10, color: colors.white, fontWeight: fontWeight.medium },
+
+  field: { backgroundColor: colors.white, padding: spacing.base, marginTop: spacing.sm },
+  fieldLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
+  fieldLabel: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.text.primary, flex: 1 },
+  optional: { fontSize: fontSize.small, color: colors.text.tertiary },
+
+  input: {
+    borderWidth: 1, borderColor: colors.gray[200], borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+    fontSize: fontSize.base, color: colors.text.primary, backgroundColor: colors.background.secondary,
+  },
+  textarea: { minHeight: 80, textAlignVertical: 'top', paddingTop: spacing.md },
+  charCount: { fontSize: 10, color: colors.gray[400], textAlign: 'right', marginTop: 4 },
+
+  zonePicker: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderColor: colors.gray[200], borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+    backgroundColor: colors.background.secondary,
+  },
+  zonePickerText: { fontSize: fontSize.base, color: colors.text.primary, fontWeight: fontWeight.medium },
+  zoneList: { marginTop: spacing.xs, borderWidth: 1, borderColor: colors.gray[200], borderRadius: borderRadius.md, overflow: 'hidden' },
+  zoneOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.gray[100] },
+  zoneOptionActive: { backgroundColor: colors.primary[50] },
+  zoneOptionText: { fontSize: fontSize.base, color: colors.text.secondary },
+  zoneOptionTextActive: { color: colors.primary[700], fontWeight: fontWeight.semibold },
+
+  tagGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
+  tagChip: {
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 1,
+    borderRadius: borderRadius.full, borderWidth: 1, borderColor: colors.gray[200],
+    backgroundColor: colors.gray[50],
+  },
+  tagChipActive: { backgroundColor: colors.primary[50], borderColor: colors.primary[300] },
+  tagChipText: { fontSize: fontSize.small, color: colors.gray[500] },
+  tagChipTextActive: { color: colors.primary[700], fontWeight: fontWeight.semibold },
+
+  tagInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  tagInput: {
+    flex: 1, borderWidth: 1, borderColor: colors.gray[200], borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+    fontSize: fontSize.base, color: colors.text.primary, backgroundColor: colors.background.secondary,
+  },
+  tagAddBtn: {
+    width: 40, height: 40, borderRadius: borderRadius.md,
+    backgroundColor: colors.primary[600], alignItems: 'center', justifyContent: 'center',
+  },
+  selectedTags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
+  selectedTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.primary[50], borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 1,
+    borderWidth: 1, borderColor: colors.primary[200],
+  },
+  selectedTagText: { fontSize: fontSize.small, color: colors.primary[700], fontWeight: fontWeight.medium },
 });

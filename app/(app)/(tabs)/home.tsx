@@ -2,52 +2,73 @@
  * SitePro — Home Dashboard
  */
 
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Modal,
-  StatusBar,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  ChevronRight,
-  CheckSquare,
-  Camera,
-  Users,
-  Map,
-  AlertCircle,
-  CheckCircle2,
-  X,
-  Calendar,
-  MapPin,
-} from 'lucide-react-native';
-import { colors } from '@theme/colors';
-import {
-  fontSize,
-  fontWeight,
-  spacing,
-  borderRadius,
-  shadows,
-  iconSize,
-} from '@theme/tokens';
-import { useAppStore } from '@store/appStore';
+import { AnimatedNumber, ScreenEntrance, StaggerItem } from '@components/ui/Animated';
 import { Avatar } from '@components/ui/Avatar';
 import { Badge } from '@components/ui/Badge';
-import { TopBar } from '@components/layout/TopBar';
-import { StaggerItem, AnimatedNumber, ScreenEntrance, PressableScale } from '@components/ui/Animated';
+import { useAppStore } from '@store/appStore';
+import { useAuthStore } from '@store/authStore';
+import { colors } from '@theme/colors';
+import {
+  borderRadius,
+  fontSize,
+  fontWeight,
+  iconSize,
+  shadows,
+  spacing,
+} from '@theme/tokens';
+import type { Task } from '@types/index';
 import {
   formatShortDate,
-  timeAgo,
-  getTaskStatusColors,
   getProjectStatusColors,
+  getTaskStatusColors,
+  timeAgo,
 } from '@utils/index';
-import type { Task } from '@types/index';
+import {
+  AlertCircle,
+  Building2,
+  Calendar,
+  Camera,
+  CheckCircle,
+  CheckSquare,
+  ChevronRight,
+  FileText,
+  House,
+  Map,
+  MapPin,
+  Plus,
+  Settings,
+  Users,
+  X
+} from 'lucide-react-native';
+import React, { useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// ─── Project Selector Modal ───────────────────────────────────
+
+// ─── Project + New Project Modal (unified, single Modal) ─────
+const STATUS_OPTIONS: ('En Progreso' | 'En Revisión' | 'Pausado')[] = [
+  'En Progreso', 'En Revisión', 'Pausado',
+];
+
+const STATUS_COLORS_MAP: Record<string, { bg: string; text: string; border: string }> = {
+  'En Progreso': { bg: colors.primary[50], text: colors.primary[700], border: colors.primary[400] },
+  'En Revisión': { bg: colors.warning[50], text: colors.warning[700], border: colors.warning[400] },
+  'Pausado': { bg: colors.gray[100], text: colors.gray[600], border: colors.gray[400] },
+};
+
 function ProjectSelectorModal({
   visible,
   onClose,
@@ -55,52 +76,228 @@ function ProjectSelectorModal({
   visible: boolean;
   onClose: () => void;
 }) {
-  const { projects, currentProjectId, setCurrentProject } = useAppStore();
+  const { projects, currentProjectId, setCurrentProject, addProject } = useAppStore();
+  const [view, setView] = React.useState<'list' | 'new'>('list');
+
+  // Form state
+  const [name, setName] = React.useState('');
+  const [client, setClient] = React.useState('');
+  const [startDate, setStartDate] = React.useState('');
+  const [deadline, setDeadline] = React.useState('');
+  const [status, setStatus] = React.useState<'En Progreso' | 'En Revisión' | 'Pausado'>('En Progreso');
+  const [teamCount, setTeamCount] = React.useState('');
+
+  React.useEffect(() => {
+    if (!visible) {
+      setView('list');
+      setName(''); setClient(''); setStartDate('');
+      setDeadline(''); setStatus('En Progreso'); setTeamCount('');
+    }
+  }, [visible]);
+
+  const fmtDate = (text: string, setter: (v: string) => void) => {
+    const d = text.replace(/[^0-9]/g, '').slice(0, 8);
+    let f = d;
+    if (d.length > 4) f = d.slice(0, 4) + '-' + d.slice(4);
+    if (d.length > 6) f = f.slice(0, 7) + '-' + d.slice(6);
+    setter(f);
+  };
 
   const handleSelect = (id: string) => {
     setCurrentProject(id);
     onClose();
   };
 
+  const handleCreate = () => {
+    if (!name.trim()) { Alert.alert('Error', 'El nombre es requerido'); return; }
+    if (startDate.length < 10) { Alert.alert('Error', 'Fecha de inicio inválida (aaaa-mm-dd)'); return; }
+    if (deadline.length < 10) { Alert.alert('Error', 'Fecha de entrega inválida (aaaa-mm-dd)'); return; }
+
+    addProject({
+      id: `proj-${Date.now()}`,
+      name: name.trim(),
+      status,
+      progress: 0,
+      startDate,
+      deadline,
+      totalTasks: 0,
+      completedTasks: 0,
+      pendingTasks: 0,
+      urgentTasks: 0,
+      teamCount: parseInt(teamCount) || 0,
+    });
+    onClose();
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={modal.overlay}>
-        <View style={modal.sheet}>
-          <View style={modal.header}>
-            <Text style={modal.title}>Seleccionar Proyecto</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <X size={iconSize.md} color={colors.gray[600]} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {projects.map((project) => {
-              const isSelected = project.id === currentProjectId;
-              const statusColors = getProjectStatusColors(project.status);
-              return (
-                <TouchableOpacity
-                  key={project.id}
-                  onPress={() => handleSelect(project.id)}
-                  activeOpacity={0.85}
-                  style={[modal.projectCard, isSelected && modal.projectCardSelected]}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <View style={modal.overlay}>
+          <View style={[modal.sheet, { maxHeight: view === 'new' ? '92%' : '80%' }]}>
+
+            {view === 'list' ? (
+              /* ── PROJECT LIST ── */
+              <>
+                <View style={modal.header}>
+                  <Text style={modal.title}>Proyectos</Text>
+                  <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <X size={iconSize.md} color={colors.gray[600]} />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+                  {projects.map((project) => {
+                    const isSelected = project.id === currentProjectId;
+                    const sc = getProjectStatusColors(project.status);
+                    return (
+                      <TouchableOpacity
+                        key={project.id}
+                        onPress={() => handleSelect(project.id)}
+                        activeOpacity={0.85}
+                        style={[modal.projectCard, isSelected && modal.projectCardSelected]}
+                      >
+                        <View style={modal.projectHeader}>
+                          <Text style={modal.projectName} numberOfLines={1}>{project.name}</Text>
+                          <Badge label={project.status} bg={sc.bg} textColor={sc.text} />
+                        </View>
+                        <View style={modal.projectMeta}>
+                          <Text style={modal.projectMetaText}>{project.totalTasks} tareas</Text>
+                          <Text style={modal.projectMetaText}>{project.progress}% completado</Text>
+                          <Text style={modal.projectMetaText}>Vence: {formatShortDate(project.deadline)}</Text>
+                        </View>
+                        <View style={modal.progressTrack}>
+                          <View style={[modal.progressFill, { width: `${project.progress}%` as any }]} />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  {/* Botón nuevo proyecto */}
+                  <TouchableOpacity
+                    style={modal.addProjectBtn}
+                    onPress={() => setView('new')}
+                    activeOpacity={0.85}
+                  >
+                    <View style={modal.addProjectIconBg}>
+                      <Plus size={22} color={colors.white} strokeWidth={2.5} />
+                    </View>
+                    <View style={modal.addProjectInfo}>
+                      <Text style={modal.addProjectTitle}>Nuevo proyecto</Text>
+                      <Text style={modal.addProjectSub}>Crear y configurar un proyecto nuevo</Text>
+                    </View>
+                    <ChevronRight size={18} color="rgba(255,255,255,0.6)" />
+                  </TouchableOpacity>
+                </ScrollView>
+              </>
+            ) : (
+              /* ── NEW PROJECT FORM ── */
+              <>
+                <View style={modal.header}>
+                  <TouchableOpacity onPress={() => setView('list')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={modal.cancelText}>← Volver</Text>
+                  </TouchableOpacity>
+                  <Text style={modal.title}>Nuevo Proyecto</Text>
+                  <TouchableOpacity onPress={handleCreate} style={modal.createBtn}>
+                    <Text style={modal.createText}>Crear</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  style={{ padding: spacing.base }}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={{ paddingBottom: 40 }}
                 >
-                  <View style={modal.projectHeader}>
-                    <Text style={modal.projectName}>{project.name}</Text>
-                    <Badge label={project.status} bg={statusColors.bg} textColor={statusColors.text} />
+                  {/* Hero */}
+                  <View style={modal.formHero}>
+                    <View style={modal.formHeroIcon}>
+                      <Building2 size={30} color={colors.primary[600]} />
+                    </View>
+                    <Text style={modal.formHeroText}>Completa los datos del proyecto</Text>
                   </View>
-                  <View style={modal.projectMeta}>
-                    <Text style={modal.projectMetaText}>{project.totalTasks} tareas</Text>
-                    <Text style={modal.projectMetaText}>{project.progress}% completado</Text>
-                    <Text style={modal.projectMetaText}>Vence: {formatShortDate(project.deadline)}</Text>
+
+                  <Text style={modal.formLabel}>Nombre del proyecto *</Text>
+                  <TextInput
+                    style={modal.formInput}
+                    placeholder="Ej: Torre Empresarial Norte"
+                    placeholderTextColor={colors.gray[400]}
+                    value={name}
+                    onChangeText={setName}
+                    maxLength={60}
+                  />
+
+                  <Text style={modal.formLabel}>Cliente / Empresa</Text>
+                  <TextInput
+                    style={modal.formInput}
+                    placeholder="Ej: Grupo Inmobiliario XYZ"
+                    placeholderTextColor={colors.gray[400]}
+                    value={client}
+                    onChangeText={setClient}
+                  />
+
+                  <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={modal.formLabel}>Inicio *</Text>
+                      <TextInput
+                        style={modal.formInput}
+                        placeholder="aaaa-mm-dd"
+                        placeholderTextColor={colors.gray[400]}
+                        value={startDate}
+                        onChangeText={t => fmtDate(t, setStartDate)}
+                        keyboardType="numeric"
+                        maxLength={10}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={modal.formLabel}>Entrega *</Text>
+                      <TextInput
+                        style={modal.formInput}
+                        placeholder="aaaa-mm-dd"
+                        placeholderTextColor={colors.gray[400]}
+                        value={deadline}
+                        onChangeText={t => fmtDate(t, setDeadline)}
+                        keyboardType="numeric"
+                        maxLength={10}
+                      />
+                    </View>
                   </View>
-                  <View style={modal.progressTrack}>
-                    <View style={[modal.progressFill, { width: `${project.progress}%` as any }]} />
+
+                  <Text style={modal.formLabel}>Estado inicial</Text>
+                  <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
+                    {STATUS_OPTIONS.map(s => {
+                      const sc = STATUS_COLORS_MAP[s];
+                      const active = status === s;
+                      return (
+                        <TouchableOpacity
+                          key={s}
+                          style={[modal.statusChip, active && { backgroundColor: sc.bg, borderColor: sc.border }]}
+                          onPress={() => setStatus(s)}
+                          activeOpacity={0.8}
+                        >
+                          <View style={[modal.statusDot, { backgroundColor: active ? sc.text : colors.gray[300] }]} />
+                          <Text style={[modal.statusChipText, active && { color: sc.text, fontWeight: fontWeight.bold }]}>{s}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+
+                  <Text style={modal.formLabel}>Personas en el equipo</Text>
+                  <TextInput
+                    style={modal.formInput}
+                    placeholder="Ej: 8"
+                    placeholderTextColor={colors.gray[400]}
+                    value={teamCount}
+                    onChangeText={setTeamCount}
+                    keyboardType="numeric"
+                    maxLength={3}
+                  />
+                </ScrollView>
+              </>
+            )}
+
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -119,12 +316,12 @@ function SideMenu({ visible, onClose }: { visible: boolean; onClose: () => void 
   }, [visible]);
 
   const menuItems = [
-    { icon: <Home size={iconSize.md} color={colors.gray[700]} />, label: 'Inicio', active: true },
-    { icon: <CheckSquare size={iconSize.md} color={colors.gray[700]} />, label: 'Tareas', active: false },
-    { icon: <Map size={iconSize.md} color={colors.gray[700]} />, label: 'Planos', active: false },
-    { icon: <FileText size={iconSize.md} color={colors.gray[700]} />, label: 'Documentos', active: false },
-    { icon: <Camera size={iconSize.md} color={colors.gray[700]} />, label: 'Fotos', active: false },
-    { icon: <Calendar size={iconSize.md} color={colors.gray[700]} />, label: 'Calendario', active: false },
+    { renderIcon: () => <House size={iconSize.md} color={colors.gray[700]} />, label: 'Inicio', active: true },
+    { renderIcon: () => <CheckSquare size={iconSize.md} color={colors.gray[700]} />, label: 'Tareas', active: false },
+    { renderIcon: () => <Map size={iconSize.md} color={colors.gray[700]} />, label: 'Planos', active: false },
+    { renderIcon: () => <FileText size={iconSize.md} color={colors.gray[700]} />, label: 'Documentos', active: false },
+    { renderIcon: () => <Camera size={iconSize.md} color={colors.gray[700]} />, label: 'Fotos', active: false },
+    { renderIcon: () => <Calendar size={iconSize.md} color={colors.gray[700]} />, label: 'Calendario', active: false },
   ];
 
   if (!visible) return null;
@@ -149,7 +346,7 @@ function SideMenu({ visible, onClose }: { visible: boolean; onClose: () => void 
               onPress={onClose}
               activeOpacity={0.7}
             >
-              {item.icon}
+              {item.renderIcon()}
               <Text style={[menu.itemLabel, item.active && menu.itemLabelActive]}>
                 {item.label}
               </Text>
@@ -260,125 +457,122 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
 
-      {/* Top Bar compartido */}
-      <TopBar />
-
       <ScreenEntrance>
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
-        {/* Project Header Card */}
-        <TouchableOpacity style={styles.projectCard} onPress={() => setShowProjectSelector(true)} activeOpacity={0.92}>
-          <Text style={styles.projectLabel}>Proyecto Actual</Text>
-          <View style={styles.projectNameRow}>
-            <Text style={styles.projectName} numberOfLines={1}>{project?.name ?? 'Sin proyecto'}</Text>
-            <ChevronRight size={iconSize.md} color={colors.white} />
-          </View>
-          <View style={styles.metricsRow}>
-            <View style={styles.metricCard}>
-              <AnimatedNumber value={project?.totalTasks ?? 0} style={styles.metricValue} />
-              <Text style={styles.metricLabel}>Tareas</Text>
+          {/* Project Header Card */}
+          <TouchableOpacity style={styles.projectCard} onPress={() => setShowProjectSelector(true)} activeOpacity={0.92}>
+            <Text style={styles.projectLabel}>Proyecto Actual</Text>
+            <View style={styles.projectNameRow}>
+              <Text style={styles.projectName} numberOfLines={1}>{project?.name ?? 'Sin proyecto'}</Text>
+              <ChevronRight size={iconSize.md} color={colors.white} />
             </View>
-            <View style={styles.metricDivider} />
-            <View style={styles.metricCard}>
-              <AnimatedNumber value={project?.progress ?? 0} suffix='%' style={styles.metricValue} />
-              <Text style={styles.metricLabel}>Progreso</Text>
+            <View style={styles.metricsRow}>
+              <View style={styles.metricCard}>
+                <AnimatedNumber value={project?.totalTasks ?? 0} style={styles.metricValue} />
+                <Text style={styles.metricLabel}>Tareas</Text>
+              </View>
+              <View style={styles.metricDivider} />
+              <View style={styles.metricCard}>
+                <AnimatedNumber value={project?.progress ?? 0} suffix='%' style={styles.metricValue} />
+                <Text style={styles.metricLabel}>Progreso</Text>
+              </View>
+              <View style={styles.metricDivider} />
+              <View style={styles.metricCard}>
+                <AnimatedNumber value={project?.urgentTasks ?? 0} style={styles.metricValue} />
+                <Text style={styles.metricLabel}>Urgentes</Text>
+              </View>
             </View>
-            <View style={styles.metricDivider} />
-            <View style={styles.metricCard}>
-              <AnimatedNumber value={project?.urgentTasks ?? 0} style={styles.metricValue} />
-              <Text style={styles.metricLabel}>Urgentes</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
-          <View style={styles.actionsGrid}>
-            {[
-              { icon: <CheckSquare size={22} color={colors.primary[600]} />, label: 'Tareas', bg: colors.primary[100] },
-              { icon: <Camera size={22} color={colors.purple[500]} />, label: 'Fotos', bg: colors.purple[100] },
-              { icon: <Users size={22} color={colors.success[500]} />, label: 'Equipo', bg: colors.success[100] },
-              { icon: <Map size={22} color={colors.orange[500]} />, label: 'Planos', bg: colors.orange[100] },
-            ].map((action, i) => (
-              <TouchableOpacity key={i} style={styles.actionBtn} activeOpacity={0.8}>
-                <View style={[styles.actionIcon, { backgroundColor: action.bg }]}>{action.icon}</View>
-                <Text style={styles.actionLabel}>{action.label}</Text>
+          {/* Quick Actions */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
+            <View style={styles.actionsGrid}>
+              {[
+                { renderIcon: () => <CheckSquare size={22} color={colors.primary[600]} />, label: 'Tareas', bg: colors.primary[100] },
+                { renderIcon: () => <Camera size={22} color={colors.purple[500]} />, label: 'Fotos', bg: colors.purple[100] },
+                { renderIcon: () => <Users size={22} color={colors.success[500]} />, label: 'Equipo', bg: colors.success[100] },
+                { renderIcon: () => <Map size={22} color={colors.orange[500]} />, label: 'Planos', bg: colors.orange[100] },
+              ].map((action, i) => (
+                <TouchableOpacity key={i} style={styles.actionBtn} activeOpacity={0.8}>
+                  <View style={[styles.actionIcon, { backgroundColor: action.bg }]}>{action.renderIcon()}</View>
+                  <Text style={styles.actionLabel}>{action.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Urgent Tasks */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Tareas Urgentes</Text>
+              <TouchableOpacity>
+                <Text style={styles.sectionLink}>Ver todas →</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Urgent Tasks */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Tareas Urgentes</Text>
-            <TouchableOpacity>
-              <Text style={styles.sectionLink}>Ver todas →</Text>
-            </TouchableOpacity>
-          </View>
-          {urgent.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <CheckCircle2 size={32} color={colors.success[500]} />
-              <Text style={styles.emptyText}>¡Sin tareas urgentes!</Text>
             </View>
-          ) : (
-            urgent.map((task, index) => {
-              const sc = getTaskStatusColors(task.status);
-              return (
-                <StaggerItem key={task.id} index={index}>
-                <TouchableOpacity
-                  style={styles.taskCard}
-                  onPress={() => setSelectedTask(task)}
-                  activeOpacity={0.88}
-                >
-                  <AlertCircle size={iconSize.md} color={sc.icon} style={styles.taskIcon} />
-                  <View style={styles.taskContent}>
-                    <Text style={styles.taskTitle} numberOfLines={1}>{task.title}</Text>
-                    <View style={styles.taskMeta}>
-                      <Text style={styles.taskMetaText}>{task.assignedTo.name}</Text>
-                      <Text style={styles.taskMetaDot}>•</Text>
-                      <Text style={styles.taskMetaText}>{task.location}</Text>
-                      <Text style={styles.taskMetaDot}>•</Text>
-                      <Text style={styles.taskMetaText}>{formatShortDate(task.deadline)}</Text>
+            {urgent.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <CheckCircle size={32} color={colors.success[500]} />
+                <Text style={styles.emptyText}>¡Sin tareas urgentes!</Text>
+              </View>
+            ) : (
+              urgent.map((task, index) => {
+                const sc = getTaskStatusColors(task.status);
+                return (
+                  <StaggerItem key={task.id} index={index}>
+                    <TouchableOpacity
+                      style={styles.taskCard}
+                      onPress={() => setSelectedTask(task)}
+                      activeOpacity={0.88}
+                    >
+                      <AlertCircle size={iconSize.md} color={sc.icon} style={styles.taskIcon} />
+                      <View style={styles.taskContent}>
+                        <Text style={styles.taskTitle} numberOfLines={1}>{task.title}</Text>
+                        <View style={styles.taskMeta}>
+                          <Text style={styles.taskMetaText}>{task.assignedTo.name}</Text>
+                          <Text style={styles.taskMetaDot}>•</Text>
+                          <Text style={styles.taskMetaText}>{task.location}</Text>
+                          <Text style={styles.taskMetaDot}>•</Text>
+                          <Text style={styles.taskMetaText}>{formatShortDate(task.deadline)}</Text>
+                        </View>
+                      </View>
+                      <ChevronRight size={iconSize.md} color={colors.gray[400]} />
+                    </TouchableOpacity>
+                  </StaggerItem>
+                );
+              })
+            )}
+          </View>
+
+          {/* Recent Activity */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Actividad Reciente</Text>
+            <View style={styles.activityCard}>
+              {activity.map((item, index) => (
+                <View key={item.id}>
+                  <View style={styles.activityItem}>
+                    <View style={[
+                      styles.activityIconBg,
+                      { backgroundColor: item.type === 'task_completed' ? colors.success[100] : colors.primary[100] }
+                    ]}>
+                      {item.type === 'task_completed'
+                        ? <CheckCircle size={14} color={colors.success[500]} />
+                        : <Camera size={14} color={colors.primary[600]} />
+                      }
+                    </View>
+                    <View style={styles.activityContent}>
+                      <Text style={styles.activityTitle}>{item.title}</Text>
+                      <Text style={styles.activityDesc} numberOfLines={1}>{item.description}</Text>
+                      <Text style={styles.activityTime}>{timeAgo(item.timestamp)}</Text>
                     </View>
                   </View>
-                  <ChevronRight size={iconSize.md} color={colors.gray[400]} />
-                </TouchableOpacity>
-                </StaggerItem>
-              );
-            })
-          )}
-        </View>
-
-        {/* Recent Activity */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actividad Reciente</Text>
-          <View style={styles.activityCard}>
-            {activity.map((item, index) => (
-              <View key={item.id}>
-                <View style={styles.activityItem}>
-                  <View style={[
-                    styles.activityIconBg,
-                    { backgroundColor: item.type === 'task_completed' ? colors.success[100] : colors.primary[100] }
-                  ]}>
-                    {item.type === 'task_completed'
-                      ? <CheckCircle2 size={14} color={colors.success[500]} />
-                      : <Camera size={14} color={colors.primary[600]} />
-                    }
-                  </View>
-                  <View style={styles.activityContent}>
-                    <Text style={styles.activityTitle}>{item.title}</Text>
-                    <Text style={styles.activityDesc} numberOfLines={1}>{item.description}</Text>
-                    <Text style={styles.activityTime}>{timeAgo(item.timestamp)}</Text>
-                  </View>
+                  {index < activity.length - 1 && <View style={styles.activityDivider} />}
                 </View>
-                {index < activity.length - 1 && <View style={styles.activityDivider} />}
-              </View>
-            ))}
+              ))}
+            </View>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
 
       </ScreenEntrance>
 
@@ -476,7 +670,7 @@ const styles = StyleSheet.create({
 
 const modal = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.white, borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, maxHeight: '75%', paddingBottom: 32 },
+  sheet: { backgroundColor: colors.white, borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, maxHeight: '80%' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, borderBottomWidth: 1, borderBottomColor: colors.gray[200] },
   title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
   projectCard: { margin: spacing.base, marginBottom: 0, padding: spacing.base, borderWidth: 2, borderColor: colors.gray[200], borderRadius: borderRadius.md, gap: spacing.sm },
@@ -487,6 +681,33 @@ const modal = StyleSheet.create({
   projectMetaText: { fontSize: fontSize.body, color: colors.text.tertiary },
   progressTrack: { height: 8, backgroundColor: colors.gray[200], borderRadius: borderRadius.full, overflow: 'hidden' },
   progressFill: { height: '100%' as any, backgroundColor: colors.primary[600], borderRadius: borderRadius.full },
+  cancelText: { fontSize: fontSize.base, color: colors.gray[500] },
+  createBtn: { backgroundColor: colors.primary[600], paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
+  createText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },
+  formHero: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.sm },
+  formHeroIcon: { width: 68, height: 68, borderRadius: borderRadius.xl, backgroundColor: colors.primary[50], borderWidth: 2, borderColor: colors.primary[200], alignItems: 'center', justifyContent: 'center' },
+  formHeroText: { fontSize: fontSize.body, color: colors.text.tertiary },
+  formLabel: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.secondary, marginBottom: spacing.xs, marginTop: spacing.base },
+  formInput: { borderWidth: 1, borderColor: colors.gray[300], borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.md, fontSize: fontSize.base, color: colors.text.primary, backgroundColor: colors.white, minHeight: 48 },
+  statusChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: colors.gray[200], backgroundColor: colors.white },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusChipText: { fontSize: fontSize.body, color: colors.gray[500] },
+  addProjectBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: spacing.base, marginTop: spacing.md,
+    padding: spacing.base,
+    backgroundColor: colors.primary[600],
+    borderRadius: borderRadius.md,
+    gap: spacing.md,
+  },
+  addProjectIconBg: {
+    width: 44, height: 44, borderRadius: borderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  addProjectInfo: { flex: 1 },
+  addProjectTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.white },
+  addProjectSub: { fontSize: fontSize.small, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
 });
 
 const menu = StyleSheet.create({
@@ -527,4 +748,105 @@ const taskModal = StyleSheet.create({
   btnPrimaryText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.white },
   btnSecondary: { backgroundColor: colors.gray[100], paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
   btnSecondaryText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.text.secondary },
+});
+
+// ─── New Project Form Styles ──────────────────────────────────
+const newProj = StyleSheet.create({
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+  },
+  backBtn: {
+    width: 32, height: 32, borderRadius: borderRadius.full,
+    backgroundColor: colors.gray[100], alignItems: 'center', justifyContent: 'center',
+  },
+  title: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
+  saveBtn: {
+    backgroundColor: colors.primary[600],
+    paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.sm,
+  },
+  saveText: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.white },
+  body: { padding: spacing.base },
+  iconRow: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.sm },
+  projectIcon: {
+    width: 64, height: 64, borderRadius: borderRadius.lg,
+    backgroundColor: colors.primary[50], alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: colors.primary[200],
+  },
+  iconHint: { fontSize: fontSize.small, color: colors.text.tertiary },
+  label: {
+    fontSize: fontSize.body, fontWeight: fontWeight.medium,
+    color: colors.text.secondary, marginBottom: spacing.xs, marginTop: spacing.md,
+  },
+  input: {
+    borderWidth: 1, borderColor: colors.gray[300], borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+    fontSize: fontSize.base, color: colors.text.primary,
+    backgroundColor: colors.white, minHeight: 48,
+  },
+  dateRow: { flexDirection: 'row', gap: spacing.md },
+  statusRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  statusChip: {
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: colors.gray[200],
+    backgroundColor: colors.gray[50],
+  },
+  statusChipText: { fontSize: fontSize.body, color: colors.gray[500], fontWeight: fontWeight.medium },
+});
+
+// ─── New Project Modal Styles ─────────────────────────────────
+const npModal = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: colors.background.secondary,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    maxHeight: '92%',
+  },
+  handle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: colors.gray[300],
+    alignSelf: 'center', marginTop: spacing.sm,
+  },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+  },
+  title: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
+  cancel: { fontSize: fontSize.base, color: colors.gray[500] },
+  createBtn: { backgroundColor: colors.primary[600], paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
+  createText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },
+  body: { padding: spacing.base },
+  hero: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.sm },
+  heroIcon: {
+    width: 72, height: 72, borderRadius: borderRadius.xl,
+    backgroundColor: colors.primary[50],
+    borderWidth: 2, borderColor: colors.primary[200],
+    alignItems: 'center', justifyContent: 'center',
+  },
+  heroText: { fontSize: fontSize.body, color: colors.text.tertiary },
+  label: {
+    fontSize: fontSize.body, fontWeight: fontWeight.medium,
+    color: colors.text.secondary, marginBottom: spacing.xs, marginTop: spacing.base,
+  },
+  input: {
+    borderWidth: 1, borderColor: colors.gray[300], borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+    fontSize: fontSize.base, color: colors.text.primary,
+    backgroundColor: colors.white, minHeight: 48,
+  },
+  row: { flexDirection: 'row', gap: spacing.md },
+  statusRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  statusChip: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: colors.gray[200],
+    backgroundColor: colors.white,
+  },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusText: { fontSize: fontSize.body, color: colors.gray[500] },
 });

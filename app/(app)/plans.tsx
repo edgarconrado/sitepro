@@ -3,52 +3,59 @@
  * Lista de planos filtrable + visor con zoom/pan (Reanimated + GestureHandler)
  */
 
-import React, { useState, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Modal,
-  StatusBar,
-  ScrollView,
-  Dimensions,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenEntrance, StaggerItem } from '@components/ui/Animated';
+import { Badge } from '@components/ui/Badge';
+import { FAB } from '@components/ui/FAB';
+import { colors } from '@theme/colors';
+import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
+import { formatDate } from '@utils/index';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import {
   ArrowLeft,
-  ZoomIn,
-  ZoomOut,
-  Download,
-  Share2,
-  X,
-  FileText,
   Calendar,
-  User,
-  Layers,
   ChevronRight,
-  RotateCw,
+  Download,
+  FileText,
+  ImagePlus,
+  Layers,
   Maximize2,
+  Plus,
+  Ruler,
+  Share2,
+  User,
+  X,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-  clamp,
-} from 'react-native-reanimated';
+import React, { useMemo, useState } from 'react';
 import {
-  GestureDetector,
+  Alert,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import {
   Gesture,
+  GestureDetector,
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
-import { colors } from '@theme/colors';
-import { fontSize, fontWeight, spacing, borderRadius, shadows, iconSize } from '@theme/tokens';
-import { Badge } from '@components/ui/Badge';
-import { StaggerItem, ScreenEntrance } from '@components/ui/Animated';
-import { formatDate } from '@utils/index';
+import Animated, {
+  clamp,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring
+} from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -73,18 +80,18 @@ interface BlueprintPlan {
 
 // ─── Mock data ────────────────────────────────────────────────
 const PLANS: BlueprintPlan[] = [
-  { id: '1',  code: 'ARQ-PB-001',  title: 'Planta Baja — Distribución General',    discipline: 'Arquitectónico', level: 'Planta Baja',  revision: 'Rev. 4', status: 'Vigente',  updatedAt: '2026-02-10T10:00:00Z', author: 'Roberto Díaz',   scale: '1:100', bgColor: '#0F2940', gridColor: '#1E4A7A' },
-  { id: '2',  code: 'ARQ-N1-002',  title: 'Nivel 1 — Distribución y Cotas',        discipline: 'Arquitectónico', level: 'Nivel 1',      revision: 'Rev. 3', status: 'Vigente',  updatedAt: '2026-02-08T09:00:00Z', author: 'Roberto Díaz',   scale: '1:100', bgColor: '#0F2940', gridColor: '#1E4A7A' },
-  { id: '3',  code: 'ARQ-N2-003',  title: 'Nivel 2 — Planta Arquitectónica',       discipline: 'Arquitectónico', level: 'Nivel 2',      revision: 'Rev. 2', status: 'Revisión', updatedAt: '2026-02-05T14:00:00Z', author: 'Roberto Díaz',   scale: '1:100', bgColor: '#0F2940', gridColor: '#1E4A7A' },
-  { id: '4',  code: 'EST-CIM-001', title: 'Cimentación — Planta de Trazo',         discipline: 'Estructural',    level: 'Cimentación',  revision: 'Rev. 5', status: 'Vigente',  updatedAt: '2026-02-12T08:00:00Z', author: 'Laura Morales',  scale: '1:75',  bgColor: '#1A0A2E', gridColor: '#3D1F6B' },
-  { id: '5',  code: 'EST-N1-002',  title: 'Nivel 1 — Losa y Trabes',               discipline: 'Estructural',    level: 'Nivel 1',      revision: 'Rev. 3', status: 'Vigente',  updatedAt: '2026-02-11T11:00:00Z', author: 'Laura Morales',  scale: '1:75',  bgColor: '#1A0A2E', gridColor: '#3D1F6B' },
-  { id: '6',  code: 'EST-COL-003', title: 'Detalle de Columnas Tipo A y B',        discipline: 'Estructural',    level: 'General',      revision: 'Rev. 1', status: 'Vigente',  updatedAt: '2026-01-28T10:00:00Z', author: 'Laura Morales',  scale: '1:25',  bgColor: '#1A0A2E', gridColor: '#3D1F6B' },
-  { id: '7',  code: 'ELE-PB-001',  title: 'Planta Baja — Instalación Eléctrica',   discipline: 'Eléctrico',      level: 'Planta Baja',  revision: 'Rev. 2', status: 'Vigente',  updatedAt: '2026-02-09T15:00:00Z', author: 'Juan Pérez',     scale: '1:100', bgColor: '#0A1E0A', gridColor: '#1A4A1A' },
-  { id: '8',  code: 'ELE-N3-002',  title: 'Nivel 3 — Tableros y Circuitos',        discipline: 'Eléctrico',      level: 'Nivel 3',      revision: 'Rev. 1', status: 'Revisión', updatedAt: '2026-02-06T13:00:00Z', author: 'Juan Pérez',     scale: '1:75',  bgColor: '#0A1E0A', gridColor: '#1A4A1A' },
-  { id: '9',  code: 'HID-PB-001',  title: 'Planta Baja — Red Hidráulica',          discipline: 'Hidráulico',     level: 'Planta Baja',  revision: 'Rev. 3', status: 'Vigente',  updatedAt: '2026-02-07T10:00:00Z', author: 'María García',   scale: '1:100', bgColor: '#0A1A2E', gridColor: '#0A3A5A' },
-  { id: '10', code: 'HID-SAN-002', title: 'Sistema Sanitario — Isométrico',        discipline: 'Hidráulico',     level: 'General',      revision: 'Rev. 2', status: 'Vigente',  updatedAt: '2026-02-04T09:00:00Z', author: 'María García',   scale: '1:50',  bgColor: '#0A1A2E', gridColor: '#0A3A5A' },
-  { id: '11', code: 'MEC-CT-001',  title: 'Cuarto de Máquinas — Distribución',     discipline: 'Mecánico',       level: 'Sótano',       revision: 'Rev. 1', status: 'Vigente',  updatedAt: '2026-01-30T11:00:00Z', author: 'Carlos Ruiz',   scale: '1:50',  bgColor: '#2E1A0A', gridColor: '#5A3A0A' },
-  { id: '12', code: 'MEC-CLI-002', title: 'Climatización — Ductos Nivel 1-3',      discipline: 'Mecánico',       level: 'Niveles 1-3',  revision: 'Rev. 2', status: 'Obsoleto', updatedAt: '2026-01-15T08:00:00Z', author: 'Carlos Ruiz',   scale: '1:100', bgColor: '#2E1A0A', gridColor: '#5A3A0A' },
+  { id: '1', code: 'ARQ-PB-001', title: 'Planta Baja — Distribución General', discipline: 'Arquitectónico', level: 'Planta Baja', revision: 'Rev. 4', status: 'Vigente', updatedAt: '2026-02-10T10:00:00Z', author: 'Roberto Díaz', scale: '1:100', bgColor: '#0F2940', gridColor: '#1E4A7A' },
+  { id: '2', code: 'ARQ-N1-002', title: 'Nivel 1 — Distribución y Cotas', discipline: 'Arquitectónico', level: 'Nivel 1', revision: 'Rev. 3', status: 'Vigente', updatedAt: '2026-02-08T09:00:00Z', author: 'Roberto Díaz', scale: '1:100', bgColor: '#0F2940', gridColor: '#1E4A7A' },
+  { id: '3', code: 'ARQ-N2-003', title: 'Nivel 2 — Planta Arquitectónica', discipline: 'Arquitectónico', level: 'Nivel 2', revision: 'Rev. 2', status: 'Revisión', updatedAt: '2026-02-05T14:00:00Z', author: 'Roberto Díaz', scale: '1:100', bgColor: '#0F2940', gridColor: '#1E4A7A' },
+  { id: '4', code: 'EST-CIM-001', title: 'Cimentación — Planta de Trazo', discipline: 'Estructural', level: 'Cimentación', revision: 'Rev. 5', status: 'Vigente', updatedAt: '2026-02-12T08:00:00Z', author: 'Laura Morales', scale: '1:75', bgColor: '#1A0A2E', gridColor: '#3D1F6B' },
+  { id: '5', code: 'EST-N1-002', title: 'Nivel 1 — Losa y Trabes', discipline: 'Estructural', level: 'Nivel 1', revision: 'Rev. 3', status: 'Vigente', updatedAt: '2026-02-11T11:00:00Z', author: 'Laura Morales', scale: '1:75', bgColor: '#1A0A2E', gridColor: '#3D1F6B' },
+  { id: '6', code: 'EST-COL-003', title: 'Detalle de Columnas Tipo A y B', discipline: 'Estructural', level: 'General', revision: 'Rev. 1', status: 'Vigente', updatedAt: '2026-01-28T10:00:00Z', author: 'Laura Morales', scale: '1:25', bgColor: '#1A0A2E', gridColor: '#3D1F6B' },
+  { id: '7', code: 'ELE-PB-001', title: 'Planta Baja — Instalación Eléctrica', discipline: 'Eléctrico', level: 'Planta Baja', revision: 'Rev. 2', status: 'Vigente', updatedAt: '2026-02-09T15:00:00Z', author: 'Juan Pérez', scale: '1:100', bgColor: '#0A1E0A', gridColor: '#1A4A1A' },
+  { id: '8', code: 'ELE-N3-002', title: 'Nivel 3 — Tableros y Circuitos', discipline: 'Eléctrico', level: 'Nivel 3', revision: 'Rev. 1', status: 'Revisión', updatedAt: '2026-02-06T13:00:00Z', author: 'Juan Pérez', scale: '1:75', bgColor: '#0A1E0A', gridColor: '#1A4A1A' },
+  { id: '9', code: 'HID-PB-001', title: 'Planta Baja — Red Hidráulica', discipline: 'Hidráulico', level: 'Planta Baja', revision: 'Rev. 3', status: 'Vigente', updatedAt: '2026-02-07T10:00:00Z', author: 'María García', scale: '1:100', bgColor: '#0A1A2E', gridColor: '#0A3A5A' },
+  { id: '10', code: 'HID-SAN-002', title: 'Sistema Sanitario — Isométrico', discipline: 'Hidráulico', level: 'General', revision: 'Rev. 2', status: 'Vigente', updatedAt: '2026-02-04T09:00:00Z', author: 'María García', scale: '1:50', bgColor: '#0A1A2E', gridColor: '#0A3A5A' },
+  { id: '11', code: 'MEC-CT-001', title: 'Cuarto de Máquinas — Distribución', discipline: 'Mecánico', level: 'Sótano', revision: 'Rev. 1', status: 'Vigente', updatedAt: '2026-01-30T11:00:00Z', author: 'Carlos Ruiz', scale: '1:50', bgColor: '#2E1A0A', gridColor: '#5A3A0A' },
+  { id: '12', code: 'MEC-CLI-002', title: 'Climatización — Ductos Nivel 1-3', discipline: 'Mecánico', level: 'Niveles 1-3', revision: 'Rev. 2', status: 'Obsoleto', updatedAt: '2026-01-15T08:00:00Z', author: 'Carlos Ruiz', scale: '1:100', bgColor: '#2E1A0A', gridColor: '#5A3A0A' },
 ];
 
 const DISCIPLINES: ('Todas' | Discipline)[] = [
@@ -92,17 +99,17 @@ const DISCIPLINES: ('Todas' | Discipline)[] = [
 ];
 
 const DISCIPLINE_COLORS: Record<Discipline, { bg: string; text: string; pill: string }> = {
-  'Arquitectónico': { bg: colors.primary[100],  text: colors.primary[700],  pill: colors.primary[600]  },
-  'Estructural':    { bg: colors.purple[100],    text: colors.purple[700],   pill: colors.purple[500]   },
-  'Eléctrico':      { bg: colors.success[100],   text: colors.success[700],  pill: colors.success[600]  },
-  'Hidráulico':     { bg: '#DBEAFE',             text: '#1E40AF',            pill: '#2563EB'            },
-  'Mecánico':       { bg: colors.warning[100],   text: colors.warning[700],  pill: colors.orange[500]   },
+  'Arquitectónico': { bg: colors.primary[100], text: colors.primary[700], pill: colors.primary[600] },
+  'Estructural': { bg: colors.purple[100], text: colors.purple[700], pill: colors.purple[500] },
+  'Eléctrico': { bg: colors.success[100], text: colors.success[700], pill: colors.success[600] },
+  'Hidráulico': { bg: '#DBEAFE', text: '#1E40AF', pill: '#2563EB' },
+  'Mecánico': { bg: colors.warning[100], text: colors.warning[700], pill: colors.orange[500] },
 };
 
 const STATUS_COLORS: Record<PlanStatus, { bg: string; text: string }> = {
-  'Vigente':  { bg: colors.success[100], text: colors.success[700] },
+  'Vigente': { bg: colors.success[100], text: colors.success[700] },
   'Revisión': { bg: colors.warning[100], text: colors.warning[700] },
-  'Obsoleto': { bg: colors.error[100],   text: colors.error[700]   },
+  'Obsoleto': { bg: colors.error[100], text: colors.error[700] },
 };
 
 // ─── Blueprint Placeholder SVG-like View ──────────────────────
@@ -169,12 +176,12 @@ function PlanViewer({ plan, onClose }: { plan: BlueprintPlan; onClose: () => voi
   const CANVAS_W = SW * 2;
   const CANVAS_H = SH * 1.6;
 
-  const scale       = useSharedValue(1);
-  const savedScale  = useSharedValue(1);
-  const offsetX     = useSharedValue(0);
-  const offsetY     = useSharedValue(0);
-  const savedX      = useSharedValue(0);
-  const savedY      = useSharedValue(0);
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const offsetX = useSharedValue(0);
+  const offsetY = useSharedValue(0);
+  const savedX = useSharedValue(0);
+  const savedY = useSharedValue(0);
 
   // Pinch gesture
   const pinch = Gesture.Pinch()
@@ -200,16 +207,16 @@ function PlanViewer({ plan, onClose }: { plan: BlueprintPlan; onClose: () => voi
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
     .onEnd(() => {
-      scale.value      = withSpring(1,  { damping: 18, stiffness: 200 });
+      scale.value = withSpring(1, { damping: 18, stiffness: 200 });
       savedScale.value = 1;
-      offsetX.value    = withSpring(0,  { damping: 18, stiffness: 200 });
-      offsetY.value    = withSpring(0,  { damping: 18, stiffness: 200 });
-      savedX.value     = 0;
-      savedY.value     = 0;
+      offsetX.value = withSpring(0, { damping: 18, stiffness: 200 });
+      offsetY.value = withSpring(0, { damping: 18, stiffness: 200 });
+      savedX.value = 0;
+      savedY.value = 0;
     });
 
   const composed = Gesture.Simultaneous(pinch, pan);
-  const all      = Gesture.Exclusive(doubleTap, composed);
+  const all = Gesture.Exclusive(doubleTap, composed);
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [
@@ -219,9 +226,9 @@ function PlanViewer({ plan, onClose }: { plan: BlueprintPlan; onClose: () => voi
     ],
   }));
 
-  const zoomIn  = () => { scale.value = withSpring(Math.min(scale.value + 0.5, 4), { damping: 18, stiffness: 200 }); savedScale.value = scale.value; };
+  const zoomIn = () => { scale.value = withSpring(Math.min(scale.value + 0.5, 4), { damping: 18, stiffness: 200 }); savedScale.value = scale.value; };
   const zoomOut = () => { scale.value = withSpring(Math.max(scale.value - 0.5, 0.5), { damping: 18, stiffness: 200 }); savedScale.value = scale.value; };
-  const reset   = () => {
+  const reset = () => {
     scale.value = withSpring(1); savedScale.value = 1;
     offsetX.value = withSpring(0); offsetY.value = withSpring(0);
     savedX.value = 0; savedY.value = 0;
@@ -237,72 +244,73 @@ function PlanViewer({ plan, onClose }: { plan: BlueprintPlan; onClose: () => voi
 
           {/* Top bar */}
           <SafeAreaView style={viewer.topBar}>
-            <TouchableOpacity onPress={onClose} style={viewer.iconBtn}>
+            <TouchableOpacity onPress={onClose} style={viewer.iconBtn} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}>
               <ArrowLeft size={iconSize.md} color={colors.white} />
             </TouchableOpacity>
             <View style={viewer.topInfo}>
               <Text style={viewer.topCode}>{plan.code}</Text>
               <Text style={viewer.topTitle} numberOfLines={1}>{plan.title}</Text>
             </View>
-            <TouchableOpacity style={viewer.iconBtn}>
-              <Download size={iconSize.md} color={colors.white} />
-            </TouchableOpacity>
-          </SafeAreaView>
+            
+              <TouchableOpacity style={viewer.iconBtn}>
+                <Download size={iconSize.md} color={colors.white} />
+              </TouchableOpacity>
+            </SafeAreaView>
 
-          {/* Blueprint canvas with gesture */}
-          <View style={viewer.canvasWrapper}>
-            <GestureDetector gesture={all}>
-              <Animated.View style={[viewer.canvas, animStyle]}>
-                <BlueprintCanvas plan={plan} width={CANVAS_W} height={CANVAS_H} />
-              </Animated.View>
-            </GestureDetector>
+            {/* Blueprint canvas with gesture */}
+            <View style={viewer.canvasWrapper}>
+              <GestureDetector gesture={all}>
+                <Animated.View style={[viewer.canvas, animStyle]}>
+                  <BlueprintCanvas plan={plan} width={CANVAS_W} height={CANVAS_H} />
+                </Animated.View>
+              </GestureDetector>
 
-            {/* Hint */}
-            <View style={viewer.hint}>
-              <Text style={viewer.hintText}>Pellizca para zoom · Doble tap para resetear</Text>
-            </View>
-          </View>
-
-          {/* Zoom controls */}
-          <View style={viewer.zoomControls}>
-            <TouchableOpacity style={viewer.zoomBtn} onPress={zoomIn}>
-              <ZoomIn size={18} color={colors.white} />
-            </TouchableOpacity>
-            <TouchableOpacity style={viewer.zoomBtn} onPress={zoomOut}>
-              <ZoomOut size={18} color={colors.white} />
-            </TouchableOpacity>
-            <TouchableOpacity style={viewer.zoomBtn} onPress={reset}>
-              <Maximize2 size={18} color={colors.white} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Bottom info sheet */}
-          <View style={viewer.infoSheet}>
-            <View style={viewer.infoRow}>
-              <Badge label={plan.discipline} bg={dc.bg} textColor={dc.text} />
-              <Badge label={plan.status} bg={STATUS_COLORS[plan.status].bg} textColor={STATUS_COLORS[plan.status].text} />
-              <Badge label={plan.revision} bg={colors.gray[100]} textColor={colors.gray[600]} />
-            </View>
-            <View style={viewer.infoGrid}>
-              <View style={viewer.infoItem}>
-                <Layers size={12} color={colors.gray[400]} />
-                <Text style={viewer.infoText}>{plan.level}</Text>
-              </View>
-              <View style={viewer.infoItem}>
-                <User size={12} color={colors.gray[400]} />
-                <Text style={viewer.infoText}>{plan.author}</Text>
-              </View>
-              <View style={viewer.infoItem}>
-                <Calendar size={12} color={colors.gray[400]} />
-                <Text style={viewer.infoText}>{formatDate(plan.updatedAt)}</Text>
-              </View>
-              <View style={viewer.infoItem}>
-                <FileText size={12} color={colors.gray[400]} />
-                <Text style={viewer.infoText}>Esc. {plan.scale}</Text>
+              {/* Hint */}
+              <View style={viewer.hint}>
+                <Text style={viewer.hintText}>Pellizca para zoom · Doble tap para resetear</Text>
               </View>
             </View>
+
+            {/* Zoom controls */}
+            <View style={viewer.zoomControls}>
+              <TouchableOpacity style={viewer.zoomBtn} onPress={zoomIn}>
+                <ZoomIn size={18} color={colors.white} />
+              </TouchableOpacity>
+              <TouchableOpacity style={viewer.zoomBtn} onPress={zoomOut}>
+                <ZoomOut size={18} color={colors.white} />
+              </TouchableOpacity>
+              <TouchableOpacity style={viewer.zoomBtn} onPress={reset}>
+                <Maximize2 size={18} color={colors.white} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Bottom info sheet */}
+            <View style={viewer.infoSheet}>
+              <View style={viewer.infoRow}>
+                <Badge label={plan.discipline} bg={dc.bg} textColor={dc.text} />
+                <Badge label={plan.status} bg={STATUS_COLORS[plan.status].bg} textColor={STATUS_COLORS[plan.status].text} />
+                <Badge label={plan.revision} bg={colors.gray[100]} textColor={colors.gray[600]} />
+              </View>
+              <View style={viewer.infoGrid}>
+                <View style={viewer.infoItem}>
+                  <Layers size={12} color={colors.gray[400]} />
+                  <Text style={viewer.infoText}>{plan.level}</Text>
+                </View>
+                <View style={viewer.infoItem}>
+                  <User size={12} color={colors.gray[400]} />
+                  <Text style={viewer.infoText}>{plan.author}</Text>
+                </View>
+                <View style={viewer.infoItem}>
+                  <Calendar size={12} color={colors.gray[400]} />
+                  <Text style={viewer.infoText}>{formatDate(plan.updatedAt)}</Text>
+                </View>
+                <View style={viewer.infoItem}>
+                  <FileText size={12} color={colors.gray[400]} />
+                  <Text style={viewer.infoText}>Esc. {plan.scale}</Text>
+                </View>
+              </View>
+            </View>
           </View>
-        </View>
       </GestureHandlerRootView>
     </Modal>
   );
@@ -340,91 +348,384 @@ function PlanCard({ plan, onPress }: { plan: BlueprintPlan; onPress: () => void 
   );
 }
 
-// ─── Main Screen ──────────────────────────────────────────────
-export default function PlansScreen() {
-  const [activeFilter, setActiveFilter] = useState<'Todas' | Discipline>('Todas');
-  const [selectedPlan, setSelectedPlan] = useState<BlueprintPlan | null>(null);
 
-  const filtered = useMemo(() => {
-    if (activeFilter === 'Todas') return PLANS;
-    return PLANS.filter(p => p.discipline === activeFilter);
-  }, [activeFilter]);
+// ─── Discipline & Scale options ───────────────────────────────
+const DISCIPLINE_OPTIONS: Discipline[] = ['Arquitectónico', 'Estructural', 'Eléctrico', 'Hidráulico', 'Mecánico'];
+const SCALE_OPTIONS = ['1:25', '1:50', '1:75', '1:100', '1:150', '1:200', '1:500'];
+const LEVEL_OPTIONS = ['Planta Baja', 'Nivel 1', 'Nivel 2', 'Nivel 3', 'Cimentación', 'Sótano', 'Azotea', 'General'];
 
-  const counts = useMemo(() => {
-    const result: Record<string, number> = { Todas: PLANS.length };
-    DISCIPLINES.forEach(d => {
-      if (d !== 'Todas') result[d] = PLANS.filter(p => p.discipline === d).length;
-    });
-    return result;
-  }, []);
+const DISCIPLINE_BG: Record<Discipline, string> = {
+  'Arquitectónico': '#0F2940',
+  'Estructural': '#1A0A2E',
+  'Eléctrico': '#0A1E0A',
+  'Hidráulico': '#0A1A2E',
+  'Mecánico': '#2E1A0A',
+};
+const DISCIPLINE_GRID: Record<Discipline, string> = {
+  'Arquitectónico': '#1E4A7A',
+  'Estructural': '#3D1F6B',
+  'Eléctrico': '#1A4A1A',
+  'Hidráulico': '#0A3A5A',
+  'Mecánico': '#5A3A0A',
+};
+
+function NewPlanModal({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void;
+  onSave: (plan: BlueprintPlan) => void;
+}) {
+  const [code, setCode] = useState('');
+  const [title, setTitle] = useState('');
+  const [discipline, setDiscipline] = useState<Discipline>('Arquitectónico');
+  const [level, setLevel] = useState('Planta Baja');
+  const [author, setAuthor] = useState('');
+  const [scale, setScale] = useState('1:100');
+  const [revision, setRevision] = useState('Rev. 1');
+  const [fileUri, setFileUri] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [showDisciplines, setShowDisciplines] = useState(false);
+  const [showLevels, setShowLevels] = useState(false);
+  const [showScales, setShowScales] = useState(false);
+
+  const pickFile = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsMultipleSelection: false,
+        quality: 0.7,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setFileUri(result.assets[0].uri);
+        const parts = result.assets[0].uri.split('/');
+        setFileName(parts[parts.length - 1]);
+      }
+    } catch {
+      Alert.alert('Error', 'No se pudo seleccionar el archivo.');
+    }
+  };
+
+  const handleSave = () => {
+    if (!code.trim()) { Alert.alert('Requerido', 'El código del plano es obligatorio.'); return; }
+    if (!title.trim()) { Alert.alert('Requerido', 'El título del plano es obligatorio.'); return; }
+
+    const newPlan: BlueprintPlan = {
+      id: `plan-${Date.now()}`,
+      code: code.trim().toUpperCase(),
+      title: title.trim(),
+      discipline,
+      level,
+      revision,
+      status: 'Vigente',
+      updatedAt: new Date().toISOString(),
+      author: author.trim() || 'Sin especificar',
+      scale,
+      bgColor: DISCIPLINE_BG[discipline],
+      gridColor: DISCIPLINE_GRID[discipline],
+    };
+    onSave(newPlan);
+  };
+
+  const dc = DISCIPLINE_COLORS[discipline];
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
+    <View style={np.fullscreen}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <ArrowLeft size={iconSize.md} color={colors.gray[700]} />
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>Planos</Text>
-          <Text style={styles.headerSub}>{PLANS.length} planos · Torre Empresarial Norte</Text>
+        {/* Header */}
+        <View style={np.header}>
+          <TouchableOpacity onPress={onClose} style={np.cancelBtn}>
+            <X size={18} color={colors.gray[500]} />
+            <Text style={np.cancelText}>Cancelar</Text>
+          </TouchableOpacity>
+          <Text style={np.headerTitle}>Nuevo Plano</Text>
+          <TouchableOpacity onPress={handleSave} style={np.saveBtn}>
+            <Text style={np.saveBtnText}>Agregar</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.shareBtn}>
-          <Share2 size={iconSize.md} color={colors.gray[600]} />
-        </TouchableOpacity>
-      </View>
 
-      {/* Filter pills */}
-      <View style={styles.filterBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
-          {DISCIPLINES.map((d) => {
-            const active = activeFilter === d;
-            const pillColor = d === 'Todas' ? colors.primary[600] : DISCIPLINE_COLORS[d as Discipline]?.pill ?? colors.primary[600];
-            return (
-              <TouchableOpacity
-                key={d}
-                onPress={() => setActiveFilter(d)}
-                style={[styles.pill, active && { backgroundColor: pillColor }]}
-                activeOpacity={0.75}
-              >
-                <Text style={[styles.pillText, active && styles.pillTextActive]}>
-                  {d === 'Todas' ? `Todos (${counts.Todas})` : `${d.split('')[0]}... (${counts[d] ?? 0})`}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Plans list */}
-      <ScreenEntrance>
-        <FlatList
-          data={filtered}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContent}
+        <ScrollView
           showsVerticalScrollIndicator={false}
-          renderItem={({ item, index }) => (
-            <StaggerItem index={index}>
-              <PlanCard plan={item} onPress={() => setSelectedPlan(item)} />
-            </StaggerItem>
-          )}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <FileText size={40} color={colors.gray[300]} />
-              <Text style={styles.emptyTitle}>Sin planos</Text>
-              <Text style={styles.emptySubtitle}>No hay planos en esta disciplina</Text>
-            </View>
-          }
-        />
-      </ScreenEntrance>
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={np.body}
+        >
+          {/* Preview card */}
+          <View style={[np.preview, { backgroundColor: DISCIPLINE_BG[discipline] }]}>
+            <BlueprintCanvas
+              plan={{ id: '0', code: code || 'XXX-000', title: title || 'Nuevo plano', discipline, level, revision, status: 'Vigente', updatedAt: '', author, scale, bgColor: DISCIPLINE_BG[discipline], gridColor: DISCIPLINE_GRID[discipline] }}
+              width={SW - spacing.base * 2}
+              height={160}
+            />
+          </View>
 
-      {/* Viewer */}
-      {selectedPlan && (
-        <PlanViewer plan={selectedPlan} onClose={() => setSelectedPlan(null)} />
+          {/* ── Código y título ── */}
+          <View style={np.section}>
+            <Text style={np.sectionTitle}>Identificación</Text>
+
+            <Text style={np.label}>Código del plano *</Text>
+            <TextInput
+              style={np.input}
+              placeholder="Ej: ARQ-PB-001"
+              placeholderTextColor={colors.gray[400]}
+              value={code}
+              onChangeText={t => setCode(t.toUpperCase())}
+              maxLength={20}
+              autoCapitalize="characters"
+            />
+
+            <Text style={np.label}>Título *</Text>
+            <TextInput
+              style={np.input}
+              placeholder="Ej: Planta Baja — Distribución General"
+              placeholderTextColor={colors.gray[400]}
+              value={title}
+              onChangeText={setTitle}
+              maxLength={80}
+            />
+
+            <Text style={np.label}>Revisión</Text>
+            <TextInput
+              style={np.input}
+              placeholder="Ej: Rev. 1"
+              placeholderTextColor={colors.gray[400]}
+              value={revision}
+              onChangeText={setRevision}
+              maxLength={10}
+            />
+          </View>
+
+          {/* ── Disciplina y nivel ── */}
+          <View style={np.section}>
+            <Text style={np.sectionTitle}>Clasificación</Text>
+
+            <Text style={np.label}>Disciplina</Text>
+            <TouchableOpacity style={np.selector} onPress={() => setShowDisciplines(v => !v)} activeOpacity={0.8}>
+              <View style={[np.disciplineDot, { backgroundColor: dc.pill }]} />
+              <Text style={np.selectorText}>{discipline}</Text>
+              <ChevronRight size={16} color={colors.gray[400]} style={{ transform: [{ rotate: showDisciplines ? '90deg' : '0deg' }] }} />
+            </TouchableOpacity>
+            {showDisciplines && (
+              <View style={np.dropdown}>
+                {DISCIPLINE_OPTIONS.map(d => {
+                  const c = DISCIPLINE_COLORS[d];
+                  const active = d === discipline;
+                  return (
+                    <TouchableOpacity
+                      key={d}
+                      style={[np.dropdownItem, active && { backgroundColor: c.bg }]}
+                      onPress={() => { setDiscipline(d); setShowDisciplines(false); }}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[np.disciplineDot, { backgroundColor: c.pill }]} />
+                      <Text style={[np.dropdownItemText, active && { color: c.text, fontWeight: fontWeight.bold }]}>{d}</Text>
+                      {active && <Text style={{ color: c.text }}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            <Text style={np.label}>Nivel / Zona</Text>
+            <TouchableOpacity style={np.selector} onPress={() => setShowLevels(v => !v)} activeOpacity={0.8}>
+              <Layers size={15} color={colors.gray[500]} />
+              <Text style={np.selectorText}>{level}</Text>
+              <ChevronRight size={16} color={colors.gray[400]} style={{ transform: [{ rotate: showLevels ? '90deg' : '0deg' }] }} />
+            </TouchableOpacity>
+            {showLevels && (
+              <View style={np.dropdown}>
+                {LEVEL_OPTIONS.map(l => (
+                  <TouchableOpacity
+                    key={l}
+                    style={[np.dropdownItem, l === level && { backgroundColor: colors.primary[50] }]}
+                    onPress={() => { setLevel(l); setShowLevels(false); }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[np.dropdownItemText, l === level && { color: colors.primary[700], fontWeight: fontWeight.bold }]}>{l}</Text>
+                    {l === level && <Text style={{ color: colors.primary[600] }}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* ── Autor y escala ── */}
+          <View style={np.section}>
+            <Text style={np.sectionTitle}>Detalles técnicos</Text>
+
+            <Text style={np.label}>Autor / Responsable</Text>
+            <TextInput
+              style={np.input}
+              placeholder="Ej: Roberto Díaz"
+              placeholderTextColor={colors.gray[400]}
+              value={author}
+              onChangeText={setAuthor}
+              maxLength={40}
+            />
+
+            <Text style={np.label}>Escala</Text>
+            <TouchableOpacity style={np.selector} onPress={() => setShowScales(v => !v)} activeOpacity={0.8}>
+              <Ruler size={15} color={colors.gray[500]} />
+              <Text style={np.selectorText}>{scale}</Text>
+              <ChevronRight size={16} color={colors.gray[400]} style={{ transform: [{ rotate: showScales ? '90deg' : '0deg' }] }} />
+            </TouchableOpacity>
+            {showScales && (
+              <View style={np.dropdown}>
+                {SCALE_OPTIONS.map(s => (
+                  <TouchableOpacity
+                    key={s}
+                    style={[np.dropdownItem, s === scale && { backgroundColor: colors.primary[50] }]}
+                    onPress={() => { setScale(s); setShowScales(false); }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[np.dropdownItemText, s === scale && { color: colors.primary[700], fontWeight: fontWeight.bold }]}>{s}</Text>
+                    {s === scale && <Text style={{ color: colors.primary[600] }}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* ── Archivo ── */}
+          <View style={np.section}>
+            <Text style={np.sectionTitle}>Archivo del plano</Text>
+
+            {fileUri ? (
+              <View style={np.filePreview}>
+                <View style={np.filePreviewLeft}>
+                  <ImagePlus size={20} color={colors.primary[600]} />
+                  <View>
+                    <Text style={np.fileName} numberOfLines={1}>{fileName}</Text>
+                    <Text style={np.fileSubtitle}>Archivo seleccionado</Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={() => { setFileUri(null); setFileName(null); }}>
+                  <X size={16} color={colors.gray[400]} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={np.uploadBtn} onPress={pickFile} activeOpacity={0.85}>
+                <ImagePlus size={24} color={colors.primary[500]} />
+                <Text style={np.uploadTitle}>Subir PDF o imagen</Text>
+                <Text style={np.uploadSub}>Toca para seleccionar desde tu dispositivo</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────
+export default function PlansScreen() {
+  const [plans, setPlans] = useState<BlueprintPlan[]>(PLANS);
+  const [activeFilter, setActiveFilter] = useState<'Todas' | Discipline>('Todas');
+  const [selectedPlan, setSelectedPlan] = useState<BlueprintPlan | null>(null);
+  const [showNewPlan, setShowNewPlan] = useState(false);
+
+  const filtered = useMemo(() => {
+    if (activeFilter === 'Todas') return plans;
+    return plans.filter(p => p.discipline === activeFilter);
+  }, [activeFilter, plans]);
+
+  const counts = useMemo(() => {
+    const result: Record<string, number> = { Todas: plans.length };
+    DISCIPLINES.forEach(d => {
+      if (d !== 'Todas') result[d] = plans.filter(p => p.discipline === d).length;
+    });
+    return result;
+  }, [plans]);
+
+  return (
+    <>
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
+
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <ArrowLeft size={iconSize.md} color={colors.gray[700]} />
+          </TouchableOpacity>
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerTitle}>Planos</Text>
+            <Text style={styles.headerSub}>{plans.length} planos · Torre Empresarial Norte</Text>
+          </View>
+          <TouchableOpacity style={styles.shareBtn}>
+            <Share2 size={iconSize.md} color={colors.gray[600]} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Filter pills */}
+        <View style={styles.filterBar}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
+            {DISCIPLINES.map((d) => {
+              const active = activeFilter === d;
+              const pillColor = d === 'Todas' ? colors.primary[600] : DISCIPLINE_COLORS[d as Discipline]?.pill ?? colors.primary[600];
+              return (
+                <TouchableOpacity
+                  key={d}
+                  onPress={() => setActiveFilter(d)}
+                  style={[styles.pill, active && { backgroundColor: pillColor }]}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.pillText, active && styles.pillTextActive]}>
+                    {d === 'Todas' ? `Todos (${counts.Todas})` : `${d.split('')[0]}... (${counts[d] ?? 0})`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Plans list */}
+        <ScreenEntrance>
+          <FlatList
+            data={filtered}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item, index }) => (
+              <StaggerItem index={index}>
+                <PlanCard plan={item} onPress={() => setSelectedPlan(item)} />
+              </StaggerItem>
+            )}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <FileText size={40} color={colors.gray[300]} />
+                <Text style={styles.emptyTitle}>Sin planos</Text>
+                <Text style={styles.emptySubtitle}>No hay planos en esta disciplina</Text>
+              </View>
+            }
+          />
+        </ScreenEntrance>
+
+        {/* Viewer */}
+        {selectedPlan && (
+          <PlanViewer plan={selectedPlan} onClose={() => setSelectedPlan(null)} />
+        )}
+
+        {/* FAB */}
+        <FAB
+          onPress={() => setShowNewPlan(true)}
+          icon={<Plus size={24} color={colors.white} />}
+        />
+
+      </SafeAreaView>
+
+      {/* New Plan Modal */}
+      {showNewPlan && (
+        <NewPlanModal
+          onClose={() => setShowNewPlan(false)}
+          onSave={(plan) => {
+            setPlans(prev => [plan, ...prev]);
+            setShowNewPlan(false);
+          }}
+        />
       )}
-    </SafeAreaView>
+    </>
   );
 }
 
@@ -451,7 +752,7 @@ const styles = StyleSheet.create({
   },
   headerInfo: { flex: 1 },
   headerTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.text.primary },
-  headerSub:   { fontSize: fontSize.small, color: colors.text.tertiary, marginTop: 2 },
+  headerSub: { fontSize: fontSize.small, color: colors.text.tertiary, marginTop: 2 },
   shareBtn: { padding: spacing.sm },
 
   filterBar: {
@@ -514,8 +815,10 @@ const viewer = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
-    paddingBottom: spacing.sm,
+    paddingTop: (StatusBar.currentHeight ?? 44) + spacing.sm,
+    paddingBottom: spacing.md,
     gap: spacing.md,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   iconBtn: {
     width: 36, height: 36,
@@ -524,7 +827,7 @@ const viewer = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   topInfo: { flex: 1 },
-  topCode:  { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: colors.primary[400] },
+  topCode: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: colors.primary[400] },
   topTitle: { fontSize: fontSize.body, color: colors.white, opacity: 0.85 },
 
   canvasWrapper: {
@@ -533,7 +836,7 @@ const viewer = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  canvas: { },
+  canvas: {},
 
   hint: {
     position: 'absolute',
@@ -576,4 +879,106 @@ const viewer = StyleSheet.create({
   },
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   infoText: { fontSize: fontSize.small, color: colors.text.secondary },
+});
+
+// ─── New Plan Modal Styles ────────────────────────────────────
+const np = StyleSheet.create({
+  fullscreen: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.background.secondary,
+    zIndex: 200,
+  },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.base,
+    paddingTop: (StatusBar.currentHeight ?? 44) + spacing.sm,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    ...shadows.sm,
+  },
+  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
+  cancelBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  cancelText: { fontSize: fontSize.body, color: colors.gray[500] },
+  saveBtn: { backgroundColor: colors.primary[600], paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
+  saveBtnText: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.white },
+
+  body: { paddingBottom: 40 },
+
+  preview: {
+    borderRadius: borderRadius.md,
+    margin: spacing.base,
+    overflow: 'hidden',
+    ...shadows.md,
+  },
+
+  section: {
+    backgroundColor: colors.white,
+    padding: spacing.base,
+    marginTop: spacing.sm,
+    gap: spacing.xs,
+  },
+  sectionTitle: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
+    color: colors.text.tertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.xs,
+  },
+  label: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.medium,
+    color: colors.text.secondary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  input: {
+    borderWidth: 1, borderColor: colors.gray[200],
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+    fontSize: fontSize.base, color: colors.text.primary,
+    backgroundColor: colors.background.secondary,
+  },
+  selector: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    borderWidth: 1, borderColor: colors.gray[200],
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+    backgroundColor: colors.background.secondary,
+  },
+  selectorText: { flex: 1, fontSize: fontSize.base, color: colors.text.primary, fontWeight: fontWeight.medium },
+  disciplineDot: { width: 10, height: 10, borderRadius: 5 },
+  dropdown: {
+    marginTop: spacing.xs,
+    borderWidth: 1, borderColor: colors.gray[200],
+    borderRadius: borderRadius.md, overflow: 'hidden',
+  },
+  dropdownItem: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+  },
+  dropdownItemText: { flex: 1, fontSize: fontSize.base, color: colors.text.secondary },
+
+  uploadBtn: {
+    borderWidth: 1.5, borderColor: colors.primary[200],
+    borderStyle: 'dashed', borderRadius: borderRadius.md,
+    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: spacing.xl, gap: spacing.sm,
+    backgroundColor: colors.primary[50],
+    marginTop: spacing.xs,
+  },
+  uploadTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primary[700] },
+  uploadSub: { fontSize: fontSize.small, color: colors.primary[400] },
+
+  filePreview: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderColor: colors.primary[200],
+    borderRadius: borderRadius.md, padding: spacing.base,
+    backgroundColor: colors.primary[50], marginTop: spacing.xs,
+  },
+  filePreviewLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
+  fileName: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.primary[700], maxWidth: 220 },
+  fileSubtitle: { fontSize: fontSize.small, color: colors.primary[400], marginTop: 2 },
 });

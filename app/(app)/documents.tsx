@@ -4,10 +4,14 @@
  * Con búsqueda, filtros, favoritos y vista de detalle
  */
 
+import { colors } from '@/theme';
 import { ScreenEntrance, StaggerItem } from '@components/ui/Animated';
 import { Badge } from '@components/ui/Badge';
+import { ConfirmDialogContainer, useConfirm } from '@components/ui/ConfirmDialog';
+import { EmptyDocuments, EmptySearch } from '@components/ui/EmptyStates';
 import { FAB } from '@components/ui/FAB';
-import { colors } from '@theme/colors';
+import { useToast } from '@components/ui/Toast';
+import { useTheme } from '@hooks/useTheme';
 import {
   borderRadius,
   fontSize, fontWeight,
@@ -35,6 +39,7 @@ import {
   Share2,
   Star,
   Tag,
+  Trash2,
   User,
   X
 } from 'lucide-react-native';
@@ -195,7 +200,7 @@ const STATUS_CONFIG: Record<DocStatus, { bg: string; text: string }> = {
 
 const FILETYPE_COLORS: Record<string, { bg: string; text: string }> = {
   PDF: { bg: '#FEE2E2', text: '#DC2626' },
-  DOCX: { bg: '#DBEAFE', text: '#2563EB' },
+  DOCX: { bg: '#E0F2FE', text: '#0369A1' },
   XLSX: { bg: '#D1FAE5', text: '#059669' },
 };
 
@@ -208,20 +213,23 @@ function DocDetailModal({
   doc,
   onClose,
   onToggleFavorite,
+  onDelete,
 }: {
   doc: SiteDocument | null;
   onClose: () => void;
   onToggleFavorite: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
+  const confirm = useConfirm();
+  const toast = useToast();
   if (!doc) return null;
-
   const cat = CATEGORY_CONFIG[doc.category];
   const st = STATUS_CONFIG[doc.status];
   const ft = FILETYPE_COLORS[doc.fileType];
   const CatIcon = cat.icon;
 
   return (
-    <Modal visible animationType="slide" transparent>
+    <Modal visible={!!doc} animationType="slide" transparent>
       <View style={detailModal.overlay}>
         <View style={detailModal.sheet}>
           {/* Handle */}
@@ -339,9 +347,25 @@ function DocDetailModal({
               <Download size={16} color={colors.white} />
               <Text style={detailModal.btnDownloadText}>Descargar</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={detailModal.btnDelete}
+              activeOpacity={0.85}
+              onPress={() => confirm.confirm({
+                title: 'Eliminar documento',
+                message: `¿Eliminar "${doc.title}"? Se eliminará permanentemente del proyecto.`,
+                confirmLabel: 'Sí, eliminar',
+                icon: 'folder-remove',
+                variant: 'danger',
+                onConfirm: () => { try { onDelete(doc.id); toast.success('Documento eliminado', doc.title); onClose(); } catch { toast.error('Error al eliminar', 'Inténtalo de nuevo'); } },
+              })}
+            >
+              <Trash2 size={15} color={colors.error[500]} strokeWidth={2} />
+              <Text style={detailModal.btnDeleteText}>Eliminar</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
+      <ConfirmDialogContainer />
     </Modal>
   );
 }
@@ -743,6 +767,7 @@ function NewDocModal({
 
 // ─── Main Screen ──────────────────────────────────────────────
 export default function DocumentsScreen() {
+  const { colors, isDark } = useTheme();
   const [docs, setDocs] = useState<SiteDocument[]>(INITIAL_DOCS);
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [search, setSearch] = useState('');
@@ -894,13 +919,13 @@ export default function DocumentsScreen() {
               </StaggerItem>
             )}
             ListEmptyComponent={
-              <View style={styles.empty}>
-                <FileText size={44} color={colors.gray[200]} />
-                <Text style={styles.emptyTitle}>Sin resultados</Text>
-                <Text style={styles.emptySubtitle}>
-                  {search ? `No se encontraron documentos para "${search}"` : 'No hay documentos en esta categoría'}
-                </Text>
-              </View>
+              search
+                ? <EmptySearch title="Sin resultados" subtitle={`No se encontraron documentos para "${search}"`} />
+                : <EmptyDocuments
+                  title="Sin documentos"
+                  subtitle="Sube contratos, reportes, permisos y especificaciones del proyecto en un solo lugar."
+                  cta={{ label: '+ Subir documento', onPress: () => setShowNewDoc(true) }}
+                />
             }
           />
         </ScreenEntrance>
@@ -910,6 +935,7 @@ export default function DocumentsScreen() {
           doc={selectedDoc}
           onClose={() => setSelectedDoc(null)}
           onToggleFavorite={handleToggleFavorite}
+          onDelete={(id) => setDocs(prev => prev.filter(d => d.id !== id))}
         />
 
         {/* FAB */}
@@ -932,215 +958,232 @@ export default function DocumentsScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background.secondary },
+  safe: { flex: 1, backgroundColor: '#FAFAFA' },
 
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: '#F5F5F5',
     gap: spacing.md,
     ...shadows.sm,
   },
   backBtn: {
     width: 36, height: 36, borderRadius: borderRadius.full,
-    backgroundColor: colors.gray[100],
+    backgroundColor: '#F5F5F5',
     alignItems: 'center', justifyContent: 'center',
   },
   headerInfo: { flex: 1 },
-  headerTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.text.primary },
-  headerSub: { fontSize: fontSize.small, color: colors.text.tertiary, marginTop: 2 },
+  headerTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  headerSub: { fontSize: fontSize.small, color: '#737373', marginTop: 2 },
 
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: '#F5F5F5',
     gap: spacing.sm,
   },
   searchInput: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1, borderColor: colors.gray[200],
+    borderWidth: 1, borderColor: '#E8E8E8',
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.md, height: 40, gap: spacing.sm,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: '#FAFAFA',
   },
-  searchText: { flex: 1, fontSize: fontSize.body, color: colors.text.primary, paddingVertical: 0 },
+  searchText: { flex: 1, fontSize: fontSize.body, color: '#0F0F0F', paddingVertical: 0 },
   favToggle: {
     flexDirection: 'row', alignItems: 'center',
     width: 44, height: 40, borderRadius: borderRadius.sm,
-    backgroundColor: colors.gray[100],
+    backgroundColor: '#F5F5F5',
     alignItems: 'center', justifyContent: 'center',
     gap: 3,
   },
-  favToggleActive: { backgroundColor: colors.warning[50], borderWidth: 1, borderColor: colors.warning[200] },
-  favCount: { fontSize: 11, fontWeight: fontWeight.bold, color: colors.gray[500] },
-  favCountActive: { color: colors.warning[600] },
+  favToggleActive: { backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A' },
+  favCount: { fontSize: 11, fontWeight: fontWeight.bold, color: '#737373' },
+  favCountActive: { color: '#D97706' },
 
-  filterBar: { backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.gray[100] },
+  filterBar: { backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
   filterContent: { paddingHorizontal: spacing.base, paddingVertical: spacing.md, gap: spacing.sm },
-  pill: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.full, backgroundColor: colors.gray[100] },
-  pillText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.gray[600] },
-  pillTextActive: { color: colors.white },
+  pill: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.full, backgroundColor: '#F5F5F5' },
+  pillText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#525252' },
+  pillTextActive: { color: '#FFFFFF' },
 
   // Stats strip
   statsStrip: {
     flexDirection: 'row',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: '#F5F5F5',
   },
   statItem: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm },
-  statItemBorder: { borderRightWidth: 1, borderRightColor: colors.gray[100] },
+  statItemBorder: { borderRightWidth: 1, borderRightColor: '#F5F5F5' },
   statCount: { fontSize: fontSize.base, fontWeight: fontWeight.bold },
-  statLabel: { fontSize: 9, color: colors.text.tertiary, marginTop: 2 },
+  statLabel: { fontSize: 9, color: '#737373', marginTop: 2 },
 
   listContent: { padding: spacing.base, gap: spacing.md, paddingBottom: 40 },
 
   // Card
   card: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: borderRadius.md,
-    borderWidth: 1, borderColor: colors.gray[100],
+    borderWidth: 1, borderColor: '#F5F5F5',
     padding: spacing.md, gap: spacing.md,
     ...shadows.sm,
   },
   cardIcon: { width: 48, height: 48, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   cardContent: { flex: 1, gap: 5, minWidth: 0 },
   cardTitleRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  cardTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.text.primary, flex: 1, lineHeight: 18 },
+  cardTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: '#0F0F0F', flex: 1, lineHeight: 18 },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
   fileTypeBadge: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3 },
   fileTypeText: { fontSize: 9, fontWeight: fontWeight.bold },
-  cardMetaText: { fontSize: 10, color: colors.text.tertiary },
-  cardMetaDot: { fontSize: 10, color: colors.gray[300] },
+  cardMetaText: { fontSize: 10, color: '#737373' },
+  cardMetaDot: { fontSize: 10, color: '#D4D4D4' },
   cardBadgeRow: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
   cardRight: { alignItems: 'center', gap: spacing.sm, flexShrink: 0 },
   favoriteBtn: { padding: 4 },
 
   empty: { alignItems: 'center', paddingTop: 60, gap: spacing.sm },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.secondary },
-  emptySubtitle: { fontSize: fontSize.body, color: colors.text.tertiary, textAlign: 'center', paddingHorizontal: spacing.xl },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#333333' },
+  emptySubtitle: { fontSize: fontSize.body, color: '#737373', textAlign: 'center', paddingHorizontal: spacing.xl },
 });
 
 // ─── Detail Modal Styles ──────────────────────────────────────
 const detailModal = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     maxHeight: '90%',
   },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.gray[200], alignSelf: 'center', marginTop: spacing.sm },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E8E8E8', alignSelf: 'center', marginTop: spacing.sm },
   header: {
     flexDirection: 'row', alignItems: 'flex-start',
     padding: spacing.base, gap: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
   },
   catIcon: { width: 44, height: 44, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   headerInfo: { flex: 1 },
-  headerCat: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.text.tertiary, marginBottom: 4 },
-  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary, lineHeight: 20 },
+  headerCat: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#737373', marginBottom: 4 },
+  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F', lineHeight: 20 },
   body: { padding: spacing.base },
   badgesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.base },
-  descCard: { backgroundColor: colors.background.secondary, borderRadius: borderRadius.md, padding: spacing.base, marginBottom: spacing.base },
-  descLabel: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.text.tertiary, marginBottom: spacing.xs },
-  descText: { fontSize: fontSize.body, color: colors.text.secondary, lineHeight: 20 },
+  descCard: { backgroundColor: '#FAFAFA', borderRadius: borderRadius.md, padding: spacing.base, marginBottom: spacing.base },
+  descLabel: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#737373', marginBottom: spacing.xs },
+  descText: { fontSize: fontSize.body, color: '#333333', lineHeight: 20 },
   infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.base },
-  infoCard: { width: '47%', backgroundColor: colors.background.secondary, borderRadius: borderRadius.md, padding: spacing.md, gap: spacing.xs },
+  infoCard: { width: '47%', backgroundColor: '#FAFAFA', borderRadius: borderRadius.md, padding: spacing.md, gap: spacing.xs },
   infoLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  infoLabel: { fontSize: fontSize.small, color: colors.text.tertiary },
-  infoValue: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.primary },
+  infoLabel: { fontSize: fontSize.small, color: '#737373' },
+  infoValue: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#0F0F0F' },
   tagsSection: { gap: spacing.sm, marginBottom: spacing.lg },
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  tag: { backgroundColor: colors.primary[50], paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: borderRadius.full },
-  tagText: { fontSize: fontSize.small, color: colors.primary[600], fontWeight: fontWeight.medium },
+  tag: { backgroundColor: '#FFFBEB', paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: borderRadius.full },
+  tagText: { fontSize: fontSize.small, color: '#EAAB00', fontWeight: fontWeight.medium },
   actions: {
     flexDirection: 'row', gap: spacing.sm,
     padding: spacing.base, paddingBottom: 32,
-    borderTopWidth: 1, borderTopColor: colors.gray[100],
+    borderTopWidth: 1, borderTopColor: '#F5F5F5',
   },
   btnSecondary: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: spacing.xs, backgroundColor: colors.gray[100],
+    gap: spacing.xs, backgroundColor: '#F5F5F5',
     paddingVertical: spacing.md, borderRadius: borderRadius.md,
   },
-  btnSecondaryText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.gray[600] },
+  btnSecondaryText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#525252' },
   btnShare: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: spacing.xs, backgroundColor: colors.primary[50],
+    gap: spacing.xs, backgroundColor: '#FFFBEB',
     paddingVertical: spacing.md, borderRadius: borderRadius.md,
-    borderWidth: 1, borderColor: colors.primary[200],
+    borderWidth: 1, borderColor: '#FDE68A',
   },
-  btnShareText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.primary[600] },
+  btnShareText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#EAAB00' },
   btnDownload: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: spacing.xs, backgroundColor: colors.primary[600],
+    gap: spacing.xs, backgroundColor: '#EAAB00',
     paddingVertical: spacing.md, borderRadius: borderRadius.md,
   },
-  btnDownloadText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.white },
+  btnDownloadText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#FFFFFF' },
+  btnDelete: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    marginTop: spacing.xs,
+  },
+  btnDeleteText: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
+    color: '#EF4444',
+  },
 });
 
 // ─── New Document Modal Styles ────────────────────────────────
 const nd = StyleSheet.create({
-  fullscreen: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.background.secondary, zIndex: 200 },
+  fullscreen: { ...StyleSheet.absoluteFillObject, backgroundColor: '#FAFAFA', zIndex: 200 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: spacing.base,
     paddingTop: (StatusBar.currentHeight ?? 44) + spacing.sm,
     paddingBottom: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
     ...shadows.sm,
   },
-  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
+  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F' },
   cancelBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  cancelText: { fontSize: fontSize.body, color: colors.gray[500] },
-  saveBtn: { backgroundColor: colors.primary[600], paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
-  saveBtnText: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.white },
+  cancelText: { fontSize: fontSize.body, color: '#737373' },
+  saveBtn: { backgroundColor: '#EAAB00', paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
+  saveBtnText: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: '#FFFFFF' },
 
   body: { paddingBottom: 40 },
-  section: { backgroundColor: colors.white, padding: spacing.base, marginTop: spacing.sm },
-  sectionTitle: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: colors.text.tertiary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
-  label: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.secondary, marginTop: spacing.sm, marginBottom: spacing.xs },
-  input: { borderWidth: 1, borderColor: colors.gray[200], borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.md, fontSize: fontSize.base, color: colors.text.primary, backgroundColor: colors.background.secondary },
+  section: { backgroundColor: '#FFFFFF', padding: spacing.base, marginTop: spacing.sm },
+  sectionTitle: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: '#737373', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
+  label: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#333333', marginTop: spacing.sm, marginBottom: spacing.xs },
+  input: { borderWidth: 1, borderColor: '#E8E8E8', borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.md, fontSize: fontSize.base, color: '#0F0F0F', backgroundColor: '#FAFAFA' },
   textarea: { minHeight: 80, textAlignVertical: 'top', paddingTop: spacing.md },
-  charCount: { fontSize: 10, color: colors.gray[400], textAlign: 'right', marginTop: 4 },
+  charCount: { fontSize: 10, color: '#A3A3A3', textAlign: 'right', marginTop: 4 },
 
   catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
-  catChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: colors.gray[200], backgroundColor: colors.gray[50] },
-  catChipText: { fontSize: fontSize.small, color: colors.gray[500] },
+  catChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: '#E8E8E8', backgroundColor: '#FAFAFA' },
+  catChipText: { fontSize: fontSize.small, color: '#737373' },
 
   ftRow: { flexDirection: 'row', gap: spacing.md },
-  ftChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingVertical: spacing.md, borderRadius: borderRadius.md, borderWidth: 1.5, borderColor: colors.gray[200], backgroundColor: colors.gray[50] },
-  ftChipText: { fontSize: fontSize.body, color: colors.gray[500] },
+  ftChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingVertical: spacing.md, borderRadius: borderRadius.md, borderWidth: 1.5, borderColor: '#E8E8E8', backgroundColor: '#FAFAFA' },
+  ftChipText: { fontSize: fontSize.body, color: '#737373' },
 
   tagGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  tagChip: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 1, borderRadius: borderRadius.full, borderWidth: 1, borderColor: colors.gray[200], backgroundColor: colors.gray[50] },
-  tagChipActive: { backgroundColor: colors.primary[50], borderColor: colors.primary[300] },
-  tagChipText: { fontSize: fontSize.small, color: colors.gray[500] },
-  tagChipTextActive: { color: colors.primary[700], fontWeight: fontWeight.semibold },
+  tagChip: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 1, borderRadius: borderRadius.full, borderWidth: 1, borderColor: '#E8E8E8', backgroundColor: '#FAFAFA' },
+  tagChipActive: { backgroundColor: '#FFFBEB', borderColor: '#FCD34D' },
+  tagChipText: { fontSize: fontSize.small, color: '#737373' },
+  tagChipTextActive: { color: '#CA8A04', fontWeight: fontWeight.semibold },
   tagInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  tagInput: { flex: 1, borderWidth: 1, borderColor: colors.gray[200], borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.md, fontSize: fontSize.base, color: colors.text.primary, backgroundColor: colors.background.secondary },
-  tagAddBtn: { width: 40, height: 40, borderRadius: borderRadius.md, backgroundColor: colors.primary[600], alignItems: 'center', justifyContent: 'center' },
+  tagInput: { flex: 1, borderWidth: 1, borderColor: '#E8E8E8', borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.md, fontSize: fontSize.base, color: '#0F0F0F', backgroundColor: '#FAFAFA' },
+  tagAddBtn: { width: 40, height: 40, borderRadius: borderRadius.md, backgroundColor: '#EAAB00', alignItems: 'center', justifyContent: 'center' },
   selectedTags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
-  selectedTag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primary[50], borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 1, borderWidth: 1, borderColor: colors.primary[200] },
-  selectedTagText: { fontSize: fontSize.small, color: colors.primary[700], fontWeight: fontWeight.medium },
+  selectedTag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFBEB', borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 1, borderWidth: 1, borderColor: '#FDE68A' },
+  selectedTagText: { fontSize: fontSize.small, color: '#CA8A04', fontWeight: fontWeight.medium },
 
-  uploadBtn: { borderWidth: 1.5, borderColor: colors.primary[200], borderStyle: 'dashed', borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xl, gap: spacing.sm, backgroundColor: colors.primary[50] },
-  uploadTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primary[700] },
-  uploadSub: { fontSize: fontSize.small, color: colors.primary[400] },
-  filePreview: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.primary[200], borderRadius: borderRadius.md, padding: spacing.base, backgroundColor: colors.primary[50] },
+  uploadBtn: { borderWidth: 1.5, borderColor: '#FDE68A', borderStyle: 'dashed', borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xl, gap: spacing.sm, backgroundColor: '#FFFBEB' },
+  uploadTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#CA8A04' },
+  uploadSub: { fontSize: fontSize.small, color: '#FBBF24' },
+  filePreview: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#FDE68A', borderRadius: borderRadius.md, padding: spacing.base, backgroundColor: '#FFFBEB' },
   filePreviewLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
   fileTypeBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: borderRadius.sm },
   fileTypeBadgeText: { fontSize: 11, fontWeight: fontWeight.bold },
-  fileName: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.primary[700], flex: 1 },
+  fileName: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#CA8A04', flex: 1 },
 });

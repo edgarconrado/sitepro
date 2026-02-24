@@ -3,35 +3,35 @@
  * Responsive: usa porcentaje del ancho + safe area insets
  */
 
+import { Avatar } from '@components/ui/Avatar';
+import { useTheme } from '@hooks/useTheme';
+import { useAuthStore } from '@store/authStore';
+import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
+import { router, usePathname } from 'expo-router';
+import {
+  Calendar,
+  Camera,
+  CheckSquare,
+  FileText,
+  Home,
+  LogOut,
+  Map,
+  MessageSquare,
+  Settings,
+  Users,
+  X,
+} from 'lucide-react-native';
 import React, { useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
   Animated,
   Dimensions,
   ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  X,
-  Home,
-  CheckSquare,
-  Camera,
-  MessageSquare,
-  Users,
-  Map,
-  FileText,
-  Calendar,
-  Settings,
-  LogOut,
-} from 'lucide-react-native';
-import { colors } from '@theme/colors';
-import { fontSize, fontWeight, spacing, borderRadius, shadows, iconSize } from '@theme/tokens';
-import { Avatar } from '@components/ui/Avatar';
-import { useAuthStore } from '@store/authStore';
 
 // Ancho del drawer: 80% de la pantalla, máximo 300px
 const DRAWER_WIDTH = Math.min(Dimensions.get('window').width * 0.80, 300);
@@ -42,25 +42,26 @@ interface SideMenuProps {
 }
 
 const MENU_ITEMS = [
-  { icon: Home,         label: 'Inicio',    href: '/(app)/(tabs)/home'     as const, tab: 'home'     },
-  { icon: CheckSquare,  label: 'Tareas',    href: '/(app)/(tabs)/tasks'    as const, tab: 'tasks'    },
-  { icon: Camera,       label: 'Fotos',     href: '/(app)/(tabs)/photos'   as const, tab: 'photos'   },
-  { icon: MessageSquare,label: 'Mensajes',  href: '/(app)/(tabs)/messages' as const, tab: 'messages' },
-  { icon: Users,        label: 'Equipo',    href: '/(app)/(tabs)/team'     as const, tab: 'team'     },
+  { icon: Home, label: 'Inicio', href: '/(app)/(tabs)/home' as const, tab: 'home' },
+  { icon: CheckSquare, label: 'Tareas', href: '/(app)/(tabs)/tasks' as const, tab: 'tasks' },
+  { icon: Camera, label: 'Fotos', href: '/(app)/(tabs)/photos' as const, tab: 'photos' },
+  { icon: MessageSquare, label: 'Mensajes', href: '/(app)/(tabs)/messages' as const, tab: 'messages' },
+  { icon: Users, label: 'Equipo', href: '/(app)/(tabs)/team' as const, tab: 'team' },
 ];
 
 const SECONDARY_ITEMS = [
-  { icon: Map,      label: 'Planos'      },
-  { icon: FileText, label: 'Documentos'  },
-  { icon: Calendar, label: 'Calendario'  },
+  { icon: Map, label: 'Planos' },
+  { icon: FileText, label: 'Documentos' },
+  { icon: Calendar, label: 'Calendario' },
 ];
 
 export function SideMenu({ visible, onClose }: SideMenuProps) {
+  const { colors, isDark } = useTheme(); 
   const { user, logout } = useAuthStore();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
-  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
@@ -161,7 +162,7 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
               style={styles.closeBtn}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <X size={18} color={colors.gray[500]} />
+              <X size={18} color={colors.dark[300]} />
             </TouchableOpacity>
           </View>
         </View>
@@ -235,7 +236,7 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.base) }]}>
           <View style={styles.divider} />
           <TouchableOpacity style={styles.footerItem} onPress={handleSettings} activeOpacity={0.7}>
-            <Settings size={iconSize.md} color={colors.gray[500]} strokeWidth={1.8} />
+            <Settings size={iconSize.md} color={colors.dark[300]} strokeWidth={1.8} />
             <Text style={styles.footerLabel}>Configuración</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -262,7 +263,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: colors.white,
+    backgroundColor: '#141414',
     ...shadows.xl,
     flexDirection: 'column',
   },
@@ -284,23 +285,23 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: fontSize.base,
     fontWeight: fontWeight.bold,
-    color: colors.text.primary,
+    color: '#FFFFFF',
   },
   profileRole: {
     fontSize: fontSize.small,
-    color: colors.text.tertiary,
+    color: '#A3A3A3',
     marginTop: 2,
   },
   closeBtn: {
     padding: spacing.sm,
-    backgroundColor: colors.gray[100],
+    backgroundColor: '#333333',
     borderRadius: borderRadius.full,
     flexShrink: 0,
   },
 
   divider: {
     height: 1,
-    backgroundColor: colors.gray[100],
+    backgroundColor: '#333333',
     marginHorizontal: spacing.base,
     marginVertical: spacing.xs,
   },
@@ -316,7 +317,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 10,
     fontWeight: fontWeight.bold,
-    color: colors.gray[400],
+    color: '#737373',
     letterSpacing: 1.2,
     paddingHorizontal: spacing.sm,
     marginBottom: spacing.xs,
@@ -334,37 +335,37 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   menuItemActive: {
-    backgroundColor: colors.primary[50],
+    backgroundColor: 'rgba(234,171,0,0.15)',
   },
   menuIconBg: {
     width: 34,
     height: 34,
     borderRadius: borderRadius.sm,
-    backgroundColor: colors.gray[50],
+    backgroundColor: '#333333',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   menuIconBgActive: {
-    backgroundColor: colors.primary[100],
+    backgroundColor: 'rgba(234,171,0,0.25)',
   },
   menuLabel: {
     flex: 1,
     fontSize: fontSize.base,
     fontWeight: fontWeight.medium,
-    color: colors.text.secondary,
+    color: '#D4D4D4',
   },
   menuLabelActive: {
-    color: colors.primary[700],
-    fontWeight: fontWeight.semibold,
+    color: '#EAAB00',
+    fontWeight: fontWeight.bold,
   },
   menuLabelSecondary: {
-    color: colors.gray[400],
+    color: '#737373',
   },
   activeIndicator: {
     width: 4,
     height: 20,
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
     borderRadius: borderRadius.full,
     position: 'absolute',
     right: 0,
@@ -374,7 +375,7 @@ const styles = StyleSheet.create({
 
   // Coming soon badge
   comingBadge: {
-    backgroundColor: colors.gray[100],
+    backgroundColor: '#333333',
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: borderRadius.full,
@@ -383,7 +384,7 @@ const styles = StyleSheet.create({
   comingText: {
     fontSize: 10,
     fontWeight: fontWeight.medium,
-    color: colors.gray[400],
+    color: '#A3A3A3',
   },
 
   // Footer
@@ -401,16 +402,16 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
   },
   logoutItem: {
-    backgroundColor: colors.error[50],
+    backgroundColor: '#FEF2F2',
   },
   footerLabel: {
     fontSize: fontSize.base,
     fontWeight: fontWeight.medium,
-    color: colors.text.secondary,
+    color: '#D4D4D4',
   },
   logoutLabel: {
     fontSize: fontSize.base,
     fontWeight: fontWeight.medium,
-    color: colors.error[500],
+    color: '#EF4444',
   },
 });

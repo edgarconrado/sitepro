@@ -248,6 +248,7 @@ interface AppStore {
   setCurrentProject: (projectId: string) => void;
   updateTaskStatus: (taskId: string, status: Task['status']) => void;
   addTask: (task: Task) => void;
+  deleteTask: (taskId: string) => void;
   addProject: (project: Project) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
@@ -298,6 +299,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       ),
     }));
   },
+
+  deleteTask: (taskId) => set((s) => ({ tasks: s.tasks.filter((t) => t.id !== taskId) })),
 
   addTask: (task: Task) => {
     set((state) => ({ tasks: [task, ...state.tasks] }));

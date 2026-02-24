@@ -3,17 +3,18 @@
  * Variantes: primary | secondary | text | danger
  */
 
+import { colors } from '@/theme';
+import { useTheme } from '@hooks/useTheme';
+import { borderRadius, fontSize, fontWeight, shadows, spacing, touchSize } from '@theme/tokens';
 import React from 'react';
 import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
   ActivityIndicator,
-  ViewStyle,
+  StyleSheet,
+  Text,
   TextStyle,
+  TouchableOpacity,
+  ViewStyle,
 } from 'react-native';
-import { colors } from '@theme/colors';
-import { fontSize, fontWeight, borderRadius, spacing, shadows, touchSize } from '@theme/tokens';
 
 type ButtonVariant = 'primary' | 'secondary' | 'text' | 'danger';
 
@@ -38,6 +39,7 @@ export function Button({
   style,
   textStyle,
 }: ButtonProps) {
+  const { colors, isDark } = useTheme(); 
   const variantStyles = getVariantStyles(variant);
 
   return (
@@ -55,7 +57,7 @@ export function Button({
     >
       {isLoading ? (
         <ActivityIndicator
-          color={variant === 'primary' ? colors.white : colors.primary[600]}
+          color={variant === 'primary' ? colors.dark[900] : colors.primary[700]}
           size="small"
         />
       ) : (
@@ -73,7 +75,7 @@ function getVariantStyles(variant: ButtonVariant) {
           backgroundColor: colors.primary[600],
           ...shadows.primary,
         },
-        text: { color: colors.white },
+        text: { color: colors.dark[900] },
       };
     case 'secondary':
       return {

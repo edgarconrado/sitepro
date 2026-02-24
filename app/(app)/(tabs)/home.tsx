@@ -2,12 +2,16 @@
  * SitePro — Home Dashboard
  */
 
+import { colors } from '@/theme';
 import { AnimatedNumber, ScreenEntrance, StaggerItem } from '@components/ui/Animated';
 import { Avatar } from '@components/ui/Avatar';
 import { Badge } from '@components/ui/Badge';
+import { HomeScreenSkeleton, useSimulatedLoading } from '@components/ui/Skeletons';
+import { useSyncStore } from '@components/ui/SyncManager';
+import { useToast } from '@components/ui/Toast';
+import { useTheme } from '@hooks/useTheme';
 import { useAppStore } from '@store/appStore';
 import { useAuthStore } from '@store/authStore';
-import { colors } from '@theme/colors';
 import {
   borderRadius,
   fontSize,
@@ -148,7 +152,7 @@ function ProjectSelectorModal({
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
                   {projects.map((project) => {
                     const isSelected = project.id === currentProjectId;
-                    const sc = getProjectStatusColors(project.status);
+                    const sc = getProjectStatusColors(project.status, colors);
                     return (
                       <TouchableOpacity
                         key={project.id}
@@ -187,6 +191,7 @@ function ProjectSelectorModal({
                     </View>
                     <ChevronRight size={18} color="rgba(255,255,255,0.6)" />
                   </TouchableOpacity>
+
                 </ScrollView>
               </>
             ) : (
@@ -291,6 +296,7 @@ function ProjectSelectorModal({
                     keyboardType="numeric"
                     maxLength={3}
                   />
+
                 </ScrollView>
               </>
             )}
@@ -366,7 +372,7 @@ function SideMenu({ visible, onClose }: { visible: boolean; onClose: () => void 
 function TaskDetailModal({ task, onClose }: { task: Task | null; onClose: () => void }) {
   const { updateTaskStatus } = useAppStore();
   if (!task) return null;
-  const statusColors = getTaskStatusColors(task.status);
+  const statusColors = getTaskStatusColors(task.status, colors);
 
   return (
     <Modal visible={!!task} transparent animationType="slide">
@@ -422,6 +428,7 @@ function TaskDetailModal({ task, onClose }: { task: Task | null; onClose: () => 
                 <Text style={taskModal.infoValue}>{task.status}</Text>
               </View>
             </View>
+
           </ScrollView>
           <View style={taskModal.actions}>
             {task.status !== 'Completada' && (
@@ -445,6 +452,8 @@ function TaskDetailModal({ task, onClose }: { task: Task | null; onClose: () => 
 
 // ─── Main Dashboard ───────────────────────────────────────────
 export default function HomeScreen() {
+  const { colors, isDark } = useTheme();
+
   const [showProjectSelector, setShowProjectSelector] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
@@ -452,6 +461,11 @@ export default function HomeScreen() {
 
   const project = currentProject();
   const urgent = urgentTasks();
+
+  const toast = useToast();
+  const sync = useSyncStore();
+  const isLoading = useSimulatedLoading();
+  if (isLoading) return <HomeScreenSkeleton />;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -518,7 +532,7 @@ export default function HomeScreen() {
               </View>
             ) : (
               urgent.map((task, index) => {
-                const sc = getTaskStatusColors(task.status);
+                const sc = getTaskStatusColors(task.status, colors);
                 return (
                   <StaggerItem key={task.id} index={index}>
                     <TouchableOpacity
@@ -572,6 +586,56 @@ export default function HomeScreen() {
               ))}
             </View>
           </View>
+
+
+          {/* ── Demo: Toast & Sync (quitar en producción) ── */}
+          <View style={npModal.demoSection}>
+            <Text style={npModal.demoTitle}>Sistema de notificaciones</Text>
+            <View style={npModal.demoRow}>
+              <TouchableOpacity
+                style={[npModal.demoBtn, { backgroundColor: colors.success[500] }]}
+                onPress={() => toast.success('Cambios guardados', 'El proyecto fue actualizado')}
+              >
+                <Text style={npModal.demoBtnText}>✓ Éxito</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[npModal.demoBtn, { backgroundColor: colors.error[500] }]}
+                onPress={() => toast.error('Error al guardar', 'Intenta de nuevo más tarde')}
+              >
+                <Text style={npModal.demoBtnText}>✕ Error</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={npModal.demoRow}>
+              <TouchableOpacity
+                style={[npModal.demoBtn, { backgroundColor: '#F59E0B' }]}
+                onPress={() => toast.warning('Permiso por vencer', 'Vence en 5 días')}
+              >
+                <Text style={npModal.demoBtnText}>⚠ Aviso</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[npModal.demoBtn, { backgroundColor: colors.primary[500] }]}
+                onPress={() => toast.info('Nueva actualización', 'v2.1 disponible')}
+              >
+                <Text style={npModal.demoBtnText}>ℹ Info</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={[npModal.demoBtn, { backgroundColor: colors.gray[700], width: '100%' }]}
+              onPress={() => sync.mockSave()}
+            >
+              <Text style={npModal.demoBtnText}>☁ Simular sincronización</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[npModal.demoBtn, { backgroundColor: colors.gray[500], width: '100%' }]}
+              onPress={() => toast.promise(
+                new Promise((res, rej) => setTimeout(() => Math.random() > 0.5 ? res('ok') : rej(), 2000)),
+                { loading: 'Subiendo foto...', success: 'Foto subida correctamente', error: 'No se pudo subir la foto' }
+              )}
+            >
+              <Text style={npModal.demoBtnText}>↑ Simular promise (50% éxito)</Text>
+            </TouchableOpacity>
+          </View>
+
         </ScrollView>
 
       </ScreenEntrance>
@@ -585,118 +649,118 @@ export default function HomeScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.white },
+  safe: { flex: 1, backgroundColor: '#FFFFFF' },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: '#F5F5F5',
   },
   iconBtn: { padding: spacing.sm, borderRadius: borderRadius.sm, position: 'relative' },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   logoIcon: {
     width: 32, height: 32,
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
     borderRadius: borderRadius.sm,
     alignItems: 'center', justifyContent: 'center',
   },
-  logoText: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
+  logoText: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
   notifDot: {
     position: 'absolute', top: 6, right: 6,
     width: 8, height: 8, borderRadius: 4,
-    backgroundColor: colors.error[500],
-    borderWidth: 1.5, borderColor: colors.white,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5, borderColor: '#FFFFFF',
   },
   scroll: { flex: 1 },
   content: { paddingBottom: 24 },
   projectCard: {
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#141414',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.lg,
     marginBottom: spacing.base,
   },
-  projectLabel: { fontSize: fontSize.small, color: `${colors.white}CC`, fontWeight: fontWeight.medium, marginBottom: spacing.xs },
+  projectLabel: { fontSize: fontSize.small, color: `${'#FFFFFF'}CC`, fontWeight: fontWeight.medium, marginBottom: spacing.xs },
   projectNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.base },
-  projectName: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.white, flex: 1 },
+  projectName: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: '#FFFFFF', flex: 1 },
   metricsRow: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: borderRadius.sm, overflow: 'hidden' },
   metricCard: { flex: 1, alignItems: 'center', paddingVertical: spacing.md },
-  metricValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.white },
-  metricLabel: { fontSize: fontSize.caption, color: `${colors.white}CC`, marginTop: 2 },
+  metricValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: '#FFFFFF' },
+  metricLabel: { fontSize: fontSize.caption, color: `${'#FFFFFF'}CC`, marginTop: 2 },
   metricDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
   section: { paddingHorizontal: spacing.base, marginBottom: spacing.base },
-  sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary, marginBottom: spacing.md },
+  sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F', marginBottom: spacing.md },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
-  sectionLink: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.primary[600] },
+  sectionLink: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#EAAB00' },
   actionsGrid: { flexDirection: 'row', gap: spacing.md },
   actionBtn: {
     flex: 1, alignItems: 'center',
-    backgroundColor: colors.white,
-    borderWidth: 1, borderColor: colors.gray[100],
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1, borderColor: '#F5F5F5',
     borderRadius: borderRadius.md,
     paddingVertical: spacing.md, gap: spacing.sm,
     ...shadows.sm,
   },
   actionIcon: { width: 48, height: 48, borderRadius: borderRadius.full, alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.text.secondary },
+  actionLabel: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#333333' },
   taskCard: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.white,
-    borderWidth: 1, borderColor: colors.gray[100],
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1, borderColor: '#F5F5F5',
     borderRadius: borderRadius.md,
     padding: spacing.base, marginBottom: spacing.sm,
     ...shadows.sm,
   },
   taskIcon: { marginRight: spacing.md },
   taskContent: { flex: 1 },
-  taskTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.text.primary, marginBottom: 4 },
+  taskTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#0F0F0F', marginBottom: 4 },
   taskMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
-  taskMetaText: { fontSize: fontSize.small, color: colors.text.tertiary },
-  taskMetaDot: { fontSize: fontSize.small, color: colors.gray[300] },
-  emptyCard: { alignItems: 'center', paddingVertical: spacing.xl, backgroundColor: colors.success[50], borderRadius: borderRadius.md, gap: spacing.sm },
-  emptyText: { fontSize: fontSize.base, color: colors.success[700], fontWeight: fontWeight.medium },
-  activityCard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray[100], borderRadius: borderRadius.md, overflow: 'hidden', ...shadows.sm },
+  taskMetaText: { fontSize: fontSize.small, color: '#737373' },
+  taskMetaDot: { fontSize: fontSize.small, color: '#D4D4D4' },
+  emptyCard: { alignItems: 'center', paddingVertical: spacing.xl, backgroundColor: '#ECFDF5', borderRadius: borderRadius.md, gap: spacing.sm },
+  emptyText: { fontSize: fontSize.base, color: '#047857', fontWeight: fontWeight.medium },
+  activityCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F5F5F5', borderRadius: borderRadius.md, overflow: 'hidden', ...shadows.sm },
   activityItem: { flexDirection: 'row', alignItems: 'flex-start', padding: spacing.base, gap: spacing.md },
   activityIconBg: { width: 32, height: 32, borderRadius: borderRadius.full, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   activityContent: { flex: 1 },
-  activityTitle: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.primary, marginBottom: 2 },
-  activityDesc: { fontSize: fontSize.small, color: colors.text.tertiary, marginBottom: 4 },
-  activityTime: { fontSize: fontSize.small, color: colors.gray[400] },
-  activityDivider: { height: 1, backgroundColor: colors.gray[100], marginHorizontal: spacing.base },
+  activityTitle: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#0F0F0F', marginBottom: 2 },
+  activityDesc: { fontSize: fontSize.small, color: '#737373', marginBottom: 4 },
+  activityTime: { fontSize: fontSize.small, color: '#A3A3A3' },
+  activityDivider: { height: 1, backgroundColor: '#F5F5F5', marginHorizontal: spacing.base },
 });
 
 const modal = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.white, borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, maxHeight: '80%' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, borderBottomWidth: 1, borderBottomColor: colors.gray[200] },
-  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
-  projectCard: { margin: spacing.base, marginBottom: 0, padding: spacing.base, borderWidth: 2, borderColor: colors.gray[200], borderRadius: borderRadius.md, gap: spacing.sm },
-  projectCardSelected: { borderColor: colors.primary[600] },
+  sheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, maxHeight: '80%' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, borderBottomWidth: 1, borderBottomColor: '#E8E8E8' },
+  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  projectCard: { margin: spacing.base, marginBottom: 0, padding: spacing.base, borderWidth: 2, borderColor: '#E8E8E8', borderRadius: borderRadius.md, gap: spacing.sm },
+  projectCardSelected: { borderColor: '#EAAB00' },
   projectHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: spacing.sm },
-  projectName: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary, flex: 1 },
+  projectName: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F', flex: 1 },
   projectMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  projectMetaText: { fontSize: fontSize.body, color: colors.text.tertiary },
-  progressTrack: { height: 8, backgroundColor: colors.gray[200], borderRadius: borderRadius.full, overflow: 'hidden' },
-  progressFill: { height: '100%' as any, backgroundColor: colors.primary[600], borderRadius: borderRadius.full },
-  cancelText: { fontSize: fontSize.base, color: colors.gray[500] },
-  createBtn: { backgroundColor: colors.primary[600], paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
-  createText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },
+  projectMetaText: { fontSize: fontSize.body, color: '#737373' },
+  progressTrack: { height: 8, backgroundColor: '#E8E8E8', borderRadius: borderRadius.full, overflow: 'hidden' },
+  progressFill: { height: '100%' as any, backgroundColor: '#EAAB00', borderRadius: borderRadius.full },
+  cancelText: { fontSize: fontSize.base, color: '#737373' },
+  createBtn: { backgroundColor: '#EAAB00', paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
+  createText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#FFFFFF' },
   formHero: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.sm },
-  formHeroIcon: { width: 68, height: 68, borderRadius: borderRadius.xl, backgroundColor: colors.primary[50], borderWidth: 2, borderColor: colors.primary[200], alignItems: 'center', justifyContent: 'center' },
-  formHeroText: { fontSize: fontSize.body, color: colors.text.tertiary },
-  formLabel: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.secondary, marginBottom: spacing.xs, marginTop: spacing.base },
-  formInput: { borderWidth: 1, borderColor: colors.gray[300], borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.md, fontSize: fontSize.base, color: colors.text.primary, backgroundColor: colors.white, minHeight: 48 },
-  statusChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: colors.gray[200], backgroundColor: colors.white },
+  formHeroIcon: { width: 68, height: 68, borderRadius: borderRadius.xl, backgroundColor: '#FFFBEB', borderWidth: 2, borderColor: '#FDE68A', alignItems: 'center', justifyContent: 'center' },
+  formHeroText: { fontSize: fontSize.body, color: '#737373' },
+  formLabel: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#333333', marginBottom: spacing.xs, marginTop: spacing.base },
+  formInput: { borderWidth: 1, borderColor: '#D4D4D4', borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.md, fontSize: fontSize.base, color: '#0F0F0F', backgroundColor: '#FFFFFF', minHeight: 48 },
+  statusChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: '#E8E8E8', backgroundColor: '#FFFFFF' },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusChipText: { fontSize: fontSize.body, color: colors.gray[500] },
+  statusChipText: { fontSize: fontSize.body, color: '#737373' },
   addProjectBtn: {
     flexDirection: 'row', alignItems: 'center',
     marginHorizontal: spacing.base, marginTop: spacing.md,
     padding: spacing.base,
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
     borderRadius: borderRadius.md,
     gap: spacing.md,
   },
@@ -706,48 +770,48 @@ const modal = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   addProjectInfo: { flex: 1 },
-  addProjectTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.white },
+  addProjectTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#FFFFFF' },
   addProjectSub: { fontSize: fontSize.small, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
 });
 
 const menu = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
-  drawer: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 300, backgroundColor: colors.white, ...shadows.xl },
+  drawer: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 300, backgroundColor: '#FFFFFF', ...shadows.xl },
   closeBtn: { position: 'absolute', top: 48, right: spacing.base, padding: spacing.sm, zIndex: 1 },
-  profile: { padding: spacing.lg, paddingTop: 60, borderBottomWidth: 1, borderBottomColor: colors.gray[200], gap: 4 },
-  profileName: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary, marginTop: spacing.md },
-  profileRole: { fontSize: fontSize.body, color: colors.text.tertiary },
+  profile: { padding: spacing.lg, paddingTop: 60, borderBottomWidth: 1, borderBottomColor: '#E8E8E8', gap: 4 },
+  profileName: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F', marginTop: spacing.md },
+  profileRole: { fontSize: fontSize.body, color: '#737373' },
   items: { padding: spacing.sm, flex: 1 },
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.base, borderRadius: borderRadius.sm },
-  itemActive: { backgroundColor: colors.primary[50] },
-  itemLabel: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.text.secondary },
-  itemLabelActive: { color: colors.primary[600] },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.gray[200] },
-  footerLabel: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.text.secondary },
+  itemActive: { backgroundColor: '#FFFBEB' },
+  itemLabel: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: '#333333' },
+  itemLabelActive: { color: '#EAAB00' },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, borderTopWidth: 1, borderTopColor: '#E8E8E8' },
+  footerLabel: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: '#333333' },
 });
 
 const taskModal = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.white, borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, maxHeight: '90%' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, borderBottomWidth: 1, borderBottomColor: colors.gray[200] },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
+  sheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, maxHeight: '90%' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, borderBottomWidth: 1, borderBottomColor: '#E8E8E8' },
+  headerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
   body: { padding: spacing.base },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginBottom: spacing.sm },
-  taskTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.text.primary, flex: 1 },
+  taskTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: '#0F0F0F', flex: 1 },
   badgesRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.base },
-  descCard: { backgroundColor: colors.background.secondary, borderRadius: borderRadius.md, padding: spacing.base, marginBottom: spacing.base },
-  descLabel: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.secondary, marginBottom: spacing.xs },
-  descText: { fontSize: fontSize.body, color: colors.text.tertiary, lineHeight: 20 },
+  descCard: { backgroundColor: '#FAFAFA', borderRadius: borderRadius.md, padding: spacing.base, marginBottom: spacing.base },
+  descLabel: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#333333', marginBottom: spacing.xs },
+  descText: { fontSize: fontSize.body, color: '#737373', lineHeight: 20 },
   infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg },
-  infoCard: { width: '47%', backgroundColor: colors.background.secondary, borderRadius: borderRadius.md, padding: spacing.base, gap: spacing.xs },
-  infoLabel: { fontSize: fontSize.small, color: colors.text.tertiary },
+  infoCard: { width: '47%', backgroundColor: '#FAFAFA', borderRadius: borderRadius.md, padding: spacing.base, gap: spacing.xs },
+  infoLabel: { fontSize: fontSize.small, color: '#737373' },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  infoValue: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.primary },
-  actions: { padding: spacing.base, gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.gray[100], paddingBottom: 32 },
-  btnPrimary: { backgroundColor: colors.primary[600], paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
-  btnPrimaryText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.white },
-  btnSecondary: { backgroundColor: colors.gray[100], paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
-  btnSecondaryText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.text.secondary },
+  infoValue: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#0F0F0F' },
+  actions: { padding: spacing.base, gap: spacing.sm, borderTopWidth: 1, borderTopColor: '#F5F5F5', paddingBottom: 32 },
+  btnPrimary: { backgroundColor: '#EAAB00', paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
+  btnPrimaryText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: '#FFFFFF' },
+  btnSecondary: { backgroundColor: '#F5F5F5', paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
+  btnSecondaryText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: '#333333' },
 });
 
 // ─── New Project Form Styles ──────────────────────────────────
@@ -755,98 +819,133 @@ const newProj = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
   },
   backBtn: {
     width: 32, height: 32, borderRadius: borderRadius.full,
-    backgroundColor: colors.gray[100], alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
   },
-  title: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
+  title: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F' },
   saveBtn: {
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
     paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2,
     borderRadius: borderRadius.sm,
   },
-  saveText: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.white },
+  saveText: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: '#FFFFFF' },
   body: { padding: spacing.base },
   iconRow: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.sm },
   projectIcon: {
     width: 64, height: 64, borderRadius: borderRadius.lg,
-    backgroundColor: colors.primary[50], alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: colors.primary[200],
+    backgroundColor: '#FFFBEB', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#FDE68A',
   },
-  iconHint: { fontSize: fontSize.small, color: colors.text.tertiary },
+  iconHint: { fontSize: fontSize.small, color: '#737373' },
   label: {
     fontSize: fontSize.body, fontWeight: fontWeight.medium,
-    color: colors.text.secondary, marginBottom: spacing.xs, marginTop: spacing.md,
+    color: '#333333', marginBottom: spacing.xs, marginTop: spacing.md,
   },
   input: {
-    borderWidth: 1, borderColor: colors.gray[300], borderRadius: borderRadius.md,
+    borderWidth: 1, borderColor: '#D4D4D4', borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    fontSize: fontSize.base, color: colors.text.primary,
-    backgroundColor: colors.white, minHeight: 48,
+    fontSize: fontSize.base, color: '#0F0F0F',
+    backgroundColor: '#FFFFFF', minHeight: 48,
   },
   dateRow: { flexDirection: 'row', gap: spacing.md },
   statusRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   statusChip: {
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: colors.gray[200],
-    backgroundColor: colors.gray[50],
+    borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: '#E8E8E8',
+    backgroundColor: '#FAFAFA',
   },
-  statusChipText: { fontSize: fontSize.body, color: colors.gray[500], fontWeight: fontWeight.medium },
+  statusChipText: { fontSize: fontSize.body, color: '#737373', fontWeight: fontWeight.medium },
 });
 
 // ─── New Project Modal Styles ─────────────────────────────────
 const npModal = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.background.secondary,
+    backgroundColor: '#FAFAFA',
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     maxHeight: '92%',
   },
   handle: {
     width: 36, height: 4, borderRadius: 2,
-    backgroundColor: colors.gray[300],
+    backgroundColor: '#D4D4D4',
     alignSelf: 'center', marginTop: spacing.sm,
   },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
   },
-  title: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
-  cancel: { fontSize: fontSize.base, color: colors.gray[500] },
-  createBtn: { backgroundColor: colors.primary[600], paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
-  createText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },
+  title: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  cancel: { fontSize: fontSize.base, color: '#737373' },
+  createBtn: { backgroundColor: '#EAAB00', paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
+  createText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#FFFFFF' },
   body: { padding: spacing.base },
   hero: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.sm },
   heroIcon: {
     width: 72, height: 72, borderRadius: borderRadius.xl,
-    backgroundColor: colors.primary[50],
-    borderWidth: 2, borderColor: colors.primary[200],
+    backgroundColor: '#FFFBEB',
+    borderWidth: 2, borderColor: '#FDE68A',
     alignItems: 'center', justifyContent: 'center',
   },
-  heroText: { fontSize: fontSize.body, color: colors.text.tertiary },
+  heroText: { fontSize: fontSize.body, color: '#737373' },
   label: {
     fontSize: fontSize.body, fontWeight: fontWeight.medium,
-    color: colors.text.secondary, marginBottom: spacing.xs, marginTop: spacing.base,
+    color: '#333333', marginBottom: spacing.xs, marginTop: spacing.base,
   },
   input: {
-    borderWidth: 1, borderColor: colors.gray[300], borderRadius: borderRadius.md,
+    borderWidth: 1, borderColor: '#D4D4D4', borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    fontSize: fontSize.base, color: colors.text.primary,
-    backgroundColor: colors.white, minHeight: 48,
+    fontSize: fontSize.base, color: '#0F0F0F',
+    backgroundColor: '#FFFFFF', minHeight: 48,
   },
   row: { flexDirection: 'row', gap: spacing.md },
   statusRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   statusChip: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: colors.gray[200],
-    backgroundColor: colors.white,
+    borderRadius: borderRadius.full, borderWidth: 1.5, borderColor: '#E8E8E8',
+    backgroundColor: '#FFFFFF',
   },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: { fontSize: fontSize.body, color: colors.gray[500] },
+  statusText: { fontSize: fontSize.body, color: '#737373' },
+  demoSection: {
+    margin: spacing.base,
+    padding: spacing.base,
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    borderStyle: 'dashed',
+    gap: spacing.sm,
+  },
+  demoTitle: {
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.bold,
+    color: '#737373',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.xs,
+  },
+  demoRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  demoBtn: {
+    flex: 1,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  demoBtnText: {
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.semibold,
+    color: '#FFFFFF',
+  },
+
 });

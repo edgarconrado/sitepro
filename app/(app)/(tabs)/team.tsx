@@ -2,9 +2,12 @@
  * SitePro — Team Screen
  */
 
+import { EmptySearch, EmptyTeam } from '@/components/ui/EmptyStates';
+import { colors } from '@/theme';
 import { Avatar } from '@components/ui/Avatar';
 import { Badge } from '@components/ui/Badge';
-import { colors } from '@theme/colors';
+import { TeamScreenSkeleton, useSimulatedLoading } from '@components/ui/Skeletons';
+import { useTheme } from '@hooks/useTheme';
 import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
 import type { User } from '@types/index';
 import {
@@ -183,6 +186,8 @@ function MemberCard({ member, onPress }: { member: TeamMember; onPress: () => vo
 
 // ─── Main Screen ──────────────────────────────────────────────
 export default function TeamScreen() {
+  const { colors, isDark } = useTheme();
+
   const [search, setSearch] = useState('');
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
 
@@ -198,6 +203,9 @@ export default function TeamScreen() {
   }, [search]);
 
   const onlineCount = TEAM_MEMBERS.filter((m) => m.isOnline).length;
+
+  const isLoading = useSimulatedLoading();
+  if (isLoading) return <TeamScreenSkeleton />;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -238,10 +246,13 @@ export default function TeamScreen() {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Sin resultados</Text>
-            <Text style={styles.emptySubtitle}>No se encontraron miembros para "{search}"</Text>
-          </View>
+          search
+            ? <EmptySearch title="Sin resultados" subtitle={`No se encontraron miembros para "${search}"`} />
+            : <EmptyTeam
+              title="Equipo vacío"
+              subtitle="Aún no hay miembros en este proyecto. Invita a tu equipo para comenzar a colaborar."
+              cta={{ label: '+ Agregar miembro', onPress: () => { } }}
+            />
         }
         renderItem={({ item }) => (
           <MemberCard member={item} onPress={() => setSelectedMember(item)} />
@@ -255,14 +266,14 @@ export default function TeamScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background.secondary },
+  safe: { flex: 1, backgroundColor: '#FAFAFA' },
   header: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: spacing.base,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: '#F5F5F5',
     ...shadows.sm,
   },
   titleRow: {
@@ -271,50 +282,50 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.md,
   },
-  screenTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.text.primary },
+  screenTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: '#0F0F0F' },
   onlinePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.success[50],
+    backgroundColor: '#ECFDF5',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
   },
-  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success[500] },
-  onlineText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.success[700] },
+  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
+  onlineText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#047857' },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: colors.gray[300],
+    borderColor: '#D4D4D4',
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.md,
     height: 40,
     gap: spacing.sm,
   },
-  searchInput: { flex: 1, fontSize: fontSize.body, color: colors.text.primary, paddingVertical: 0 },
+  searchInput: { flex: 1, fontSize: fontSize.body, color: '#0F0F0F', paddingVertical: 0 },
   listContent: { padding: spacing.base, gap: spacing.md, paddingBottom: 32 },
 
   // Card
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: colors.gray[100],
+    borderColor: '#F5F5F5',
     padding: spacing.base,
     gap: spacing.md,
     ...shadows.sm,
   },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   memberInfo: { flex: 1 },
-  memberName: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.text.primary },
-  memberRole: { fontSize: fontSize.body, color: colors.text.tertiary, marginTop: 2 },
-  memberZone: { fontSize: fontSize.small, color: colors.primary[600], marginTop: 2, fontWeight: fontWeight.medium },
+  memberName: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#0F0F0F' },
+  memberRole: { fontSize: fontSize.body, color: '#737373', marginTop: 2 },
+  memberZone: { fontSize: fontSize.small, color: '#EAAB00', marginTop: 2, fontWeight: fontWeight.medium },
   tasksBadge: { alignItems: 'center' },
-  tasksBadgeNum: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
-  tasksBadgeLabel: { fontSize: fontSize.small, color: colors.text.tertiary },
+  tasksBadgeNum: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  tasksBadgeLabel: { fontSize: fontSize.small, color: '#737373' },
 
   // Card buttons
   cardActions: { flexDirection: 'row', gap: spacing.sm },
@@ -324,71 +335,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: colors.primary[50],
+    backgroundColor: '#FFFBEB',
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.sm,
   },
-  btnCallText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.primary[600] },
+  btnCallText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#EAAB00' },
   btnMessage: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: colors.gray[100],
+    backgroundColor: '#F5F5F5',
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.sm,
   },
-  btnMessageText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.gray[700] },
+  btnMessageText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#333333' },
   btnProfile: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.gray[200],
+    borderColor: '#E8E8E8',
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.sm,
   },
-  btnProfileText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.secondary },
+  btnProfileText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#333333' },
 
   // Empty
   emptyState: { alignItems: 'center', paddingTop: 60, gap: spacing.sm },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.secondary },
-  emptySubtitle: { fontSize: fontSize.body, color: colors.text.tertiary, textAlign: 'center' },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#333333' },
+  emptySubtitle: { fontSize: fontSize.body, color: '#737373', textAlign: 'center' },
 });
 
 // ─── Modal Styles ─────────────────────────────────────────────
 const mModal = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.white, borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, maxHeight: '88%' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, borderBottomWidth: 1, borderBottomColor: colors.gray[200] },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
+  sheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, maxHeight: '88%' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, borderBottomWidth: 1, borderBottomColor: '#E8E8E8' },
+  headerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
   body: { padding: spacing.base },
 
   // Profile section
   profileSection: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.sm },
-  memberName: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.text.primary },
-  memberRole: { fontSize: fontSize.base, color: colors.text.tertiary },
+  memberName: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  memberRole: { fontSize: fontSize.base, color: '#737373' },
 
   // Stats
   statsRow: {
     flexDirection: 'row',
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
     borderRadius: borderRadius.md,
     marginBottom: spacing.base,
     overflow: 'hidden',
   },
   statCard: { flex: 1, alignItems: 'center', paddingVertical: spacing.md },
-  statValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.white },
-  statLabel: { fontSize: fontSize.small, color: `${colors.white}CC` },
+  statValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: '#FFFFFF' },
+  statLabel: { fontSize: fontSize.small, color: `${'#FFFFFF'}CC` },
   statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
 
   // Info grid
   infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg },
-  infoCard: { width: '47%', backgroundColor: colors.background.secondary, borderRadius: borderRadius.md, padding: spacing.base, gap: spacing.xs },
+  infoCard: { width: '47%', backgroundColor: '#FAFAFA', borderRadius: borderRadius.md, padding: spacing.base, gap: spacing.xs },
   infoIconRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  infoLabel: { fontSize: fontSize.small, color: colors.text.tertiary },
-  infoValue: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.primary },
+  infoLabel: { fontSize: fontSize.small, color: '#737373' },
+  infoValue: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#0F0F0F' },
 
   // Actions
   actions: {
@@ -396,20 +407,20 @@ const mModal = StyleSheet.create({
     padding: spacing.base,
     gap: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.gray[100],
+    borderTopColor: '#F5F5F5',
     paddingBottom: 32,
   },
   btnCall: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: spacing.sm, backgroundColor: colors.primary[50],
+    gap: spacing.sm, backgroundColor: '#FFFBEB',
     paddingVertical: spacing.md, borderRadius: borderRadius.md,
-    borderWidth: 1, borderColor: colors.primary[200],
+    borderWidth: 1, borderColor: '#FDE68A',
   },
-  btnCallText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.primary[600] },
+  btnCallText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: '#EAAB00' },
   btnMessage: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: spacing.sm, backgroundColor: colors.primary[600],
+    gap: spacing.sm, backgroundColor: '#EAAB00',
     paddingVertical: spacing.md, borderRadius: borderRadius.md,
   },
-  btnMessageText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.white },
+  btnMessageText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: '#FFFFFF' },
 });

@@ -3,10 +3,14 @@
  * Lista de planos filtrable + visor con zoom/pan (Reanimated + GestureHandler)
  */
 
+import { colors } from '@/theme';
 import { ScreenEntrance, StaggerItem } from '@components/ui/Animated';
 import { Badge } from '@components/ui/Badge';
+import { ConfirmDialogContainer, useConfirm } from '@components/ui/ConfirmDialog';
+import { EmptyPlans } from '@components/ui/EmptyStates';
 import { FAB } from '@components/ui/FAB';
-import { colors } from '@theme/colors';
+import { useToast } from '@components/ui/Toast';
+import { useTheme } from '@hooks/useTheme';
 import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
 import { formatDate } from '@utils/index';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,6 +27,7 @@ import {
   Plus,
   Ruler,
   Share2,
+  Trash2,
   User,
   X,
   ZoomIn,
@@ -102,7 +107,7 @@ const DISCIPLINE_COLORS: Record<Discipline, { bg: string; text: string; pill: st
   'Arquitectónico': { bg: colors.primary[100], text: colors.primary[700], pill: colors.primary[600] },
   'Estructural': { bg: colors.purple[100], text: colors.purple[700], pill: colors.purple[500] },
   'Eléctrico': { bg: colors.success[100], text: colors.success[700], pill: colors.success[600] },
-  'Hidráulico': { bg: '#DBEAFE', text: '#1E40AF', pill: '#2563EB' },
+  'Hidráulico': { bg: '#E0F2FE', text: '#0369A1', pill: '#2563EB' },
   'Mecánico': { bg: colors.warning[100], text: colors.warning[700], pill: colors.orange[500] },
 };
 
@@ -114,6 +119,7 @@ const STATUS_COLORS: Record<PlanStatus, { bg: string; text: string }> = {
 
 // ─── Blueprint Placeholder SVG-like View ──────────────────────
 function BlueprintCanvas({ plan, width, height }: { plan: BlueprintPlan; width: number; height: number }) {
+  const { colors, isDark } = useTheme();
   const gridSpacing = 24;
   const cols = Math.floor(width / gridSpacing);
   const rows = Math.floor(height / gridSpacing);
@@ -172,7 +178,9 @@ function BlueprintCanvas({ plan, width, height }: { plan: BlueprintPlan; width: 
 }
 
 // ─── Pinch-to-zoom Viewer Modal ───────────────────────────────
-function PlanViewer({ plan, onClose }: { plan: BlueprintPlan; onClose: () => void }) {
+function PlanViewer({ plan, onClose, onDelete }: { plan: BlueprintPlan; onClose: () => void; onDelete?: () => void }) {
+  const confirm = useConfirm();
+  const toast = useToast();
   const CANVAS_W = SW * 2;
   const CANVAS_H = SH * 1.6;
 
@@ -243,7 +251,7 @@ function PlanViewer({ plan, onClose }: { plan: BlueprintPlan; onClose: () => voi
           <StatusBar barStyle="light-content" backgroundColor="#000" />
 
           {/* Top bar */}
-          <SafeAreaView style={viewer.topBar}>
+          <View style={viewer.topBar}>
             <TouchableOpacity onPress={onClose} style={viewer.iconBtn} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}>
               <ArrowLeft size={iconSize.md} color={colors.white} />
             </TouchableOpacity>
@@ -251,67 +259,80 @@ function PlanViewer({ plan, onClose }: { plan: BlueprintPlan; onClose: () => voi
               <Text style={viewer.topCode}>{plan.code}</Text>
               <Text style={viewer.topTitle} numberOfLines={1}>{plan.title}</Text>
             </View>
-            
-              <TouchableOpacity style={viewer.iconBtn}>
-                <Download size={iconSize.md} color={colors.white} />
-              </TouchableOpacity>
-            </SafeAreaView>
+            <TouchableOpacity style={viewer.iconBtn}>
+              <Download size={iconSize.md} color={colors.white} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[viewer.iconBtn, viewer.iconBtnDanger]}
+              onPress={() => confirm.confirm({
+                title: 'Eliminar plano',
+                message: `¿Eliminar "${plan.title}"? Se eliminará del proyecto permanentemente.`,
+                confirmLabel: 'Sí, eliminar',
+                icon: 'trash',
+                variant: 'danger',
+                onConfirm: () => { try { onDelete(); toast.success('Plano eliminado', plan.title); onClose(); } catch { toast.error('Error al eliminar', 'Inténtalo de nuevo'); } },
+              })}
+            >
+              <Trash2 size={iconSize.md} color={colors.error[400]} />
+            </TouchableOpacity>
+          </View>
 
-            {/* Blueprint canvas with gesture */}
-            <View style={viewer.canvasWrapper}>
-              <GestureDetector gesture={all}>
-                <Animated.View style={[viewer.canvas, animStyle]}>
-                  <BlueprintCanvas plan={plan} width={CANVAS_W} height={CANVAS_H} />
-                </Animated.View>
-              </GestureDetector>
+          {/* Blueprint canvas with gesture */}
+          <View style={viewer.canvasWrapper}>
+            <GestureDetector gesture={all}>
+              <Animated.View style={[viewer.canvas, animStyle]}>
+                <BlueprintCanvas plan={plan} width={CANVAS_W} height={CANVAS_H} />
+              </Animated.View>
+            </GestureDetector>
 
-              {/* Hint */}
-              <View style={viewer.hint}>
-                <Text style={viewer.hintText}>Pellizca para zoom · Doble tap para resetear</Text>
-              </View>
+            {/* Hint */}
+            <View style={viewer.hint}>
+              <Text style={viewer.hintText}>Pellizca para zoom · Doble tap para resetear</Text>
             </View>
+          </View>
 
-            {/* Zoom controls */}
-            <View style={viewer.zoomControls}>
-              <TouchableOpacity style={viewer.zoomBtn} onPress={zoomIn}>
-                <ZoomIn size={18} color={colors.white} />
-              </TouchableOpacity>
-              <TouchableOpacity style={viewer.zoomBtn} onPress={zoomOut}>
-                <ZoomOut size={18} color={colors.white} />
-              </TouchableOpacity>
-              <TouchableOpacity style={viewer.zoomBtn} onPress={reset}>
-                <Maximize2 size={18} color={colors.white} />
-              </TouchableOpacity>
+          {/* Zoom controls */}
+          <View style={viewer.zoomControls}>
+            <TouchableOpacity style={viewer.zoomBtn} onPress={zoomIn}>
+              <ZoomIn size={18} color={colors.white} />
+            </TouchableOpacity>
+            <TouchableOpacity style={viewer.zoomBtn} onPress={zoomOut}>
+              <ZoomOut size={18} color={colors.white} />
+            </TouchableOpacity>
+            <TouchableOpacity style={viewer.zoomBtn} onPress={reset}>
+              <Maximize2 size={18} color={colors.white} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Bottom info sheet */}
+          <View style={viewer.infoSheet}>
+            <View style={viewer.infoRow}>
+              <Badge label={plan.discipline} bg={dc.bg} textColor={dc.text} />
+              <Badge label={plan.status} bg={STATUS_COLORS[plan.status].bg} textColor={STATUS_COLORS[plan.status].text} />
+              <Badge label={plan.revision} bg={colors.gray[100]} textColor={colors.gray[600]} />
             </View>
-
-            {/* Bottom info sheet */}
-            <View style={viewer.infoSheet}>
-              <View style={viewer.infoRow}>
-                <Badge label={plan.discipline} bg={dc.bg} textColor={dc.text} />
-                <Badge label={plan.status} bg={STATUS_COLORS[plan.status].bg} textColor={STATUS_COLORS[plan.status].text} />
-                <Badge label={plan.revision} bg={colors.gray[100]} textColor={colors.gray[600]} />
+            <View style={viewer.infoGrid}>
+              <View style={viewer.infoItem}>
+                <Layers size={12} color={colors.gray[400]} />
+                <Text style={viewer.infoText}>{plan.level}</Text>
               </View>
-              <View style={viewer.infoGrid}>
-                <View style={viewer.infoItem}>
-                  <Layers size={12} color={colors.gray[400]} />
-                  <Text style={viewer.infoText}>{plan.level}</Text>
-                </View>
-                <View style={viewer.infoItem}>
-                  <User size={12} color={colors.gray[400]} />
-                  <Text style={viewer.infoText}>{plan.author}</Text>
-                </View>
-                <View style={viewer.infoItem}>
-                  <Calendar size={12} color={colors.gray[400]} />
-                  <Text style={viewer.infoText}>{formatDate(plan.updatedAt)}</Text>
-                </View>
-                <View style={viewer.infoItem}>
-                  <FileText size={12} color={colors.gray[400]} />
-                  <Text style={viewer.infoText}>Esc. {plan.scale}</Text>
-                </View>
+              <View style={viewer.infoItem}>
+                <User size={12} color={colors.gray[400]} />
+                <Text style={viewer.infoText}>{plan.author}</Text>
+              </View>
+              <View style={viewer.infoItem}>
+                <Calendar size={12} color={colors.gray[400]} />
+                <Text style={viewer.infoText}>{formatDate(plan.updatedAt)}</Text>
+              </View>
+              <View style={viewer.infoItem}>
+                <FileText size={12} color={colors.gray[400]} />
+                <Text style={viewer.infoText}>Esc. {plan.scale}</Text>
               </View>
             </View>
           </View>
+        </View>
       </GestureHandlerRootView>
+      <ConfirmDialogContainer />
     </Modal>
   );
 }
@@ -621,6 +642,7 @@ function NewPlanModal({
 
 // ─── Main Screen ──────────────────────────────────────────────
 export default function PlansScreen() {
+  const { colors, isDark } = useTheme();
   const [plans, setPlans] = useState<BlueprintPlan[]>(PLANS);
   const [activeFilter, setActiveFilter] = useState<'Todas' | Discipline>('Todas');
   const [selectedPlan, setSelectedPlan] = useState<BlueprintPlan | null>(null);
@@ -693,18 +715,22 @@ export default function PlansScreen() {
               </StaggerItem>
             )}
             ListEmptyComponent={
-              <View style={styles.empty}>
-                <FileText size={40} color={colors.gray[300]} />
-                <Text style={styles.emptyTitle}>Sin planos</Text>
-                <Text style={styles.emptySubtitle}>No hay planos en esta disciplina</Text>
-              </View>
+              <EmptyPlans
+                title="Sin planos"
+                subtitle="Esta disciplina no tiene planos cargados. Sube el primero para que el equipo pueda consultarlo."
+                cta={{ label: '+ Subir plano', onPress: () => setShowNewPlan(true) }}
+              />
             }
           />
         </ScreenEntrance>
 
         {/* Viewer */}
         {selectedPlan && (
-          <PlanViewer plan={selectedPlan} onClose={() => setSelectedPlan(null)} />
+          <PlanViewer
+            plan={selectedPlan}
+            onClose={() => setSelectedPlan(null)}
+            onDelete={() => setPlans(prev => prev.filter(p => p.id !== selectedPlan.id))}
+          />
         )}
 
         {/* FAB */}
@@ -731,34 +757,34 @@ export default function PlansScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background.secondary },
+  safe: { flex: 1, backgroundColor: '#FAFAFA' },
 
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: '#F5F5F5',
     gap: spacing.md,
     ...shadows.sm,
   },
   backBtn: {
     width: 36, height: 36,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.gray[100],
+    backgroundColor: '#F5F5F5',
     alignItems: 'center', justifyContent: 'center',
   },
   headerInfo: { flex: 1 },
-  headerTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.text.primary },
-  headerSub: { fontSize: fontSize.small, color: colors.text.tertiary, marginTop: 2 },
+  headerTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  headerSub: { fontSize: fontSize.small, color: '#737373', marginTop: 2 },
   shareBtn: { padding: spacing.sm },
 
   filterBar: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: '#F5F5F5',
   },
   filterContent: {
     paddingHorizontal: spacing.base,
@@ -769,10 +795,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.gray[100],
+    backgroundColor: '#F5F5F5',
   },
-  pillText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.gray[600] },
-  pillTextActive: { color: colors.white },
+  pillText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#525252' },
+  pillTextActive: { color: '#FFFFFF' },
 
   listContent: { padding: spacing.base, gap: spacing.md, paddingBottom: 32 },
 
@@ -780,10 +806,10 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: colors.gray[100],
+    borderColor: '#F5F5F5',
     overflow: 'hidden',
     gap: spacing.md,
     paddingRight: spacing.md,
@@ -795,16 +821,16 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   cardInfo: { flex: 1, paddingVertical: spacing.md, gap: 4 },
-  cardCode: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: colors.primary[600] },
-  cardTitle: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.primary, lineHeight: 18 },
+  cardCode: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: '#EAAB00' },
+  cardTitle: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#0F0F0F', lineHeight: 18 },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  cardMetaText: { fontSize: 10, color: colors.text.tertiary },
-  cardMetaDot: { color: colors.gray[300], fontSize: 10 },
+  cardMetaText: { fontSize: 10, color: '#737373' },
+  cardMetaDot: { color: '#D4D4D4', fontSize: 10 },
   cardBadges: { flexDirection: 'row', gap: spacing.xs, marginTop: 2 },
 
   empty: { alignItems: 'center', paddingTop: 60, gap: spacing.sm },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.secondary },
-  emptySubtitle: { fontSize: fontSize.body, color: colors.text.tertiary },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#333333' },
+  emptySubtitle: { fontSize: fontSize.body, color: '#737373' },
 });
 
 // ─── Viewer Styles ────────────────────────────────────────────
@@ -827,8 +853,8 @@ const viewer = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   topInfo: { flex: 1 },
-  topCode: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: colors.primary[400] },
-  topTitle: { fontSize: fontSize.body, color: colors.white, opacity: 0.85 },
+  topCode: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: '#FBBF24' },
+  topTitle: { fontSize: fontSize.body, color: '#FFFFFF', opacity: 0.85 },
 
   canvasWrapper: {
     flex: 1,
@@ -864,7 +890,7 @@ const viewer = StyleSheet.create({
   },
 
   infoSheet: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     padding: spacing.base,
@@ -878,30 +904,30 @@ const viewer = StyleSheet.create({
     gap: spacing.base,
   },
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  infoText: { fontSize: fontSize.small, color: colors.text.secondary },
+  infoText: { fontSize: fontSize.small, color: '#333333' },
 });
 
 // ─── New Plan Modal Styles ────────────────────────────────────
 const np = StyleSheet.create({
   fullscreen: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: '#FAFAFA',
     zIndex: 200,
   },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: spacing.base,
     paddingTop: (StatusBar.currentHeight ?? 44) + spacing.sm,
     paddingBottom: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
     ...shadows.sm,
   },
-  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
+  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F' },
   cancelBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  cancelText: { fontSize: fontSize.body, color: colors.gray[500] },
-  saveBtn: { backgroundColor: colors.primary[600], paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
-  saveBtnText: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.white },
+  cancelText: { fontSize: fontSize.body, color: '#737373' },
+  saveBtn: { backgroundColor: '#EAAB00', paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
+  saveBtnText: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: '#FFFFFF' },
 
   body: { paddingBottom: 40 },
 
@@ -913,7 +939,7 @@ const np = StyleSheet.create({
   },
 
   section: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     padding: spacing.base,
     marginTop: spacing.sm,
     gap: spacing.xs,
@@ -921,7 +947,7 @@ const np = StyleSheet.create({
   sectionTitle: {
     fontSize: fontSize.body,
     fontWeight: fontWeight.bold,
-    color: colors.text.tertiary,
+    color: '#737373',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: spacing.xs,
@@ -929,56 +955,59 @@ const np = StyleSheet.create({
   label: {
     fontSize: fontSize.body,
     fontWeight: fontWeight.medium,
-    color: colors.text.secondary,
+    color: '#333333',
     marginTop: spacing.sm,
     marginBottom: spacing.xs,
   },
   input: {
-    borderWidth: 1, borderColor: colors.gray[200],
+    borderWidth: 1, borderColor: '#E8E8E8',
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    fontSize: fontSize.base, color: colors.text.primary,
-    backgroundColor: colors.background.secondary,
+    fontSize: fontSize.base, color: '#0F0F0F',
+    backgroundColor: '#FAFAFA',
   },
   selector: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    borderWidth: 1, borderColor: colors.gray[200],
+    borderWidth: 1, borderColor: '#E8E8E8',
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: '#FAFAFA',
   },
-  selectorText: { flex: 1, fontSize: fontSize.base, color: colors.text.primary, fontWeight: fontWeight.medium },
+  selectorText: { flex: 1, fontSize: fontSize.base, color: '#0F0F0F', fontWeight: fontWeight.medium },
   disciplineDot: { width: 10, height: 10, borderRadius: 5 },
   dropdown: {
     marginTop: spacing.xs,
-    borderWidth: 1, borderColor: colors.gray[200],
+    borderWidth: 1, borderColor: '#E8E8E8',
     borderRadius: borderRadius.md, overflow: 'hidden',
   },
   dropdownItem: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
   },
-  dropdownItemText: { flex: 1, fontSize: fontSize.base, color: colors.text.secondary },
+  dropdownItemText: { flex: 1, fontSize: fontSize.base, color: '#333333' },
 
   uploadBtn: {
-    borderWidth: 1.5, borderColor: colors.primary[200],
+    borderWidth: 1.5, borderColor: '#FDE68A',
     borderStyle: 'dashed', borderRadius: borderRadius.md,
     alignItems: 'center', justifyContent: 'center',
     paddingVertical: spacing.xl, gap: spacing.sm,
-    backgroundColor: colors.primary[50],
+    backgroundColor: '#FFFBEB',
     marginTop: spacing.xs,
   },
-  uploadTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primary[700] },
-  uploadSub: { fontSize: fontSize.small, color: colors.primary[400] },
+  uploadTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#CA8A04' },
+  uploadSub: { fontSize: fontSize.small, color: '#FBBF24' },
 
   filePreview: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderWidth: 1, borderColor: colors.primary[200],
+    borderWidth: 1, borderColor: '#FDE68A',
     borderRadius: borderRadius.md, padding: spacing.base,
-    backgroundColor: colors.primary[50], marginTop: spacing.xs,
+    backgroundColor: '#FFFBEB', marginTop: spacing.xs,
   },
   filePreviewLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
-  fileName: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.primary[700], maxWidth: 220 },
-  fileSubtitle: { fontSize: fontSize.small, color: colors.primary[400], marginTop: 2 },
+  fileName: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: '#CA8A04', maxWidth: 220 },
+  fileSubtitle: { fontSize: fontSize.small, color: '#FBBF24', marginTop: 2 },
+  iconBtnDanger: {
+    backgroundColor: 'rgba(239,68,68,0.15)',
+  },
 });

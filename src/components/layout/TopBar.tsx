@@ -3,9 +3,11 @@
  * Fusionados en un solo archivo para evitar imports circulares
  */
 
+import { colors } from '@/theme';
+import { GlobalSearch } from '@components/ui/GlobalSearch';
 import { useMenu } from '@hooks/useMenu';
+import { useTheme } from '@hooks/useTheme';
 import { useAppStore } from '@store/appStore';
-import { colors } from '@theme/colors';
 import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
 import type { Notification } from '@types/index';
 import {
@@ -17,6 +19,7 @@ import {
   CheckSquare,
   Menu,
   MessageSquare,
+  Search,
   X,
 } from 'lucide-react-native';
 import React, { useState } from 'react';
@@ -28,6 +31,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function timeAgoShort(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -128,12 +132,15 @@ function NotificationsPanel({ visible, onClose }: { visible: boolean; onClose: (
 }
 
 export function TopBar() {
+  const { colors, isDark } = useTheme();
   const { open } = useMenu();
   const unreadNotifications = useAppStore((s) => s.unreadNotifications);
   const [showNotifs, setShowNotifs] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={tb.topBar}>
+    <View style={[tb.topBar, { paddingTop: insets.top + 8 }]}>
       <TouchableOpacity onPress={open} style={tb.iconBtn} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
         <Menu size={iconSize.lg} color={colors.gray[800]} />
       </TouchableOpacity>
@@ -143,52 +150,56 @@ export function TopBar() {
         </View>
         <Text style={tb.logoText}>SitePro</Text>
       </View>
+      <TouchableOpacity style={tb.iconBtn} onPress={() => setShowSearch(true)}>
+        <Search size={iconSize.lg} color={colors.gray[800]} />
+      </TouchableOpacity>
       <TouchableOpacity style={tb.iconBtn} onPress={() => setShowNotifs(true)}>
         <Bell size={iconSize.lg} color={colors.gray[800]} />
         {unreadNotifications > 0 && <View style={tb.notifDot} />}
       </TouchableOpacity>
       <NotificationsPanel visible={showNotifs} onClose={() => setShowNotifs(false)} />
+      <GlobalSearch visible={showSearch} onClose={() => setShowSearch(false)} />
     </View>
   );
 }
 
 const tb = StyleSheet.create({
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.sm, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.gray[100] },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingBottom: spacing.sm, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
   iconBtn: { padding: spacing.sm, borderRadius: borderRadius.sm, position: 'relative' },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  logoIcon: { width: 32, height: 32, backgroundColor: colors.primary[600], borderRadius: borderRadius.sm, alignItems: 'center', justifyContent: 'center' },
-  logoText: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
-  notifDot: { position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.error[500], borderWidth: 1.5, borderColor: colors.white },
+  logoIcon: { width: 32, height: 32, backgroundColor: '#141414', borderRadius: borderRadius.sm, alignItems: 'center', justifyContent: 'center' },
+  logoText: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  notifDot: { position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', borderWidth: 1.5, borderColor: '#FFFFFF' },
 });
 
 const np = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject },
-  panel: { backgroundColor: colors.white, borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, maxHeight: '80%', ...shadows.xl },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, borderBottomWidth: 1, borderBottomColor: colors.gray[100] },
+  panel: { backgroundColor: '#FFFFFF', borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, maxHeight: '80%', ...shadows.xl },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
-  badge: { backgroundColor: colors.error[500], borderRadius: borderRadius.full, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
-  badgeText: { fontSize: 11, fontWeight: fontWeight.bold, color: colors.white },
+  headerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  badge: { backgroundColor: '#EF4444', borderRadius: borderRadius.full, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  badgeText: { fontSize: 11, fontWeight: fontWeight.bold, color: '#FFFFFF' },
   markAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  markAllText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.primary[600] },
-  closeBtn: { width: 32, height: 32, borderRadius: borderRadius.full, backgroundColor: colors.gray[100], alignItems: 'center', justifyContent: 'center' },
-  groupLabel: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: colors.text.tertiary, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: spacing.base, paddingTop: spacing.base, paddingBottom: spacing.xs },
-  item: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: spacing.base, paddingVertical: spacing.md, gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.gray[50], position: 'relative' },
-  itemUnread: { backgroundColor: colors.primary[50] + '60' },
-  unreadDot: { position: 'absolute', left: 6, top: '50%', width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary[600] },
+  markAllText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#EAAB00' },
+  closeBtn: { width: 32, height: 32, borderRadius: borderRadius.full, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
+  groupLabel: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: '#737373', textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: spacing.base, paddingTop: spacing.base, paddingBottom: spacing.xs },
+  item: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: spacing.base, paddingVertical: spacing.md, gap: spacing.md, borderBottomWidth: 1, borderBottomColor: '#FAFAFA', position: 'relative' },
+  itemUnread: { backgroundColor: '#FFFBEB' + '60' },
+  unreadDot: { position: 'absolute', left: 6, top: '50%', width: 6, height: 6, borderRadius: 3, backgroundColor: '#EAAB00' },
   iconBg: { width: 40, height: 40, borderRadius: borderRadius.full, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   itemContent: { flex: 1, gap: 4 },
   itemHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  itemTitle: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.secondary, flex: 1 },
-  itemTitleUnread: { fontWeight: fontWeight.bold, color: colors.text.primary },
-  itemTime: { fontSize: fontSize.small, color: colors.text.tertiary, marginLeft: spacing.xs },
-  itemDesc: { fontSize: fontSize.small, color: colors.text.tertiary, lineHeight: 18 },
+  itemTitle: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#333333', flex: 1 },
+  itemTitleUnread: { fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  itemTime: { fontSize: fontSize.small, color: '#737373', marginLeft: spacing.xs },
+  itemDesc: { fontSize: fontSize.small, color: '#737373', lineHeight: 18 },
   typeBadge: { alignSelf: 'flex-start', paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: borderRadius.full },
   typeBadgeText: { fontSize: 10, fontWeight: fontWeight.bold },
   empty: { alignItems: 'center', paddingVertical: 48, gap: spacing.md },
-  emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.gray[100], alignItems: 'center', justifyContent: 'center' },
-  emptyTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.text.secondary },
-  emptySubtitle: { fontSize: fontSize.body, color: colors.text.tertiary, textAlign: 'center', paddingHorizontal: spacing.xl },
+  emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#333333' },
+  emptySubtitle: { fontSize: fontSize.body, color: '#737373', textAlign: 'center', paddingHorizontal: spacing.xl },
 });

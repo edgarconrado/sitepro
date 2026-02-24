@@ -2,7 +2,7 @@
   "expo": {
     "name": "sitepro",
     "slug": "sitepro",
-    "version": "1.0.0",
+    "version": "1.0.0R3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sitepro",
@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.jacarandalab.projex"
     },
     "web": {
       "output": "static",
@@ -43,6 +44,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1e443632-083f-4303-bec7-d6e95b95f1db"
+      }
     }
   }
 }

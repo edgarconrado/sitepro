@@ -3,9 +3,9 @@
  * Accesible desde el menú lateral como modal
  */
 
-import { Avatar } from '@components/ui/Avatar';
+import { useTheme } from '@hooks/useTheme';
 import { useAuthStore } from '@store/authStore';
-import { colors } from '@theme/colors';
+import { useThemeStore } from '@store/themeStore';
 import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
 import { router } from 'expo-router';
 import {
@@ -41,8 +41,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { colors } from '@/theme';
+import { Avatar } from '@components/ui/Avatar';
+
 // ─── Section wrapper ──────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+    const { colors, isDark } = useTheme();
     return (
         <View style={styles.section}>
             <Text style={styles.sectionTitle}>{title}</Text>
@@ -316,6 +320,7 @@ function ThemeSheet({ visible, current, onSelect, onClose }: {
 
 // ─── Main Screen ──────────────────────────────────────────────
 export default function SettingsScreen() {
+    const { colors, isDark } = useTheme();
     const { user, logout } = useAuthStore();
 
     // Modals
@@ -329,8 +334,8 @@ export default function SettingsScreen() {
     const [notifReports, setNotifReports] = useState(false);
     const [notifSound, setNotifSound] = useState(true);
 
-    // Appearance
-    const [theme, setTheme] = useState<Theme>('system');
+    // Appearance — connected to real store
+    const { mode: theme, setMode: setTheme } = useThemeStore();
 
     // Security toggles
     const [biometric, setBiometric] = useState(false);
@@ -357,8 +362,8 @@ export default function SettingsScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.safe}>
-            <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
+        <SafeAreaView style={[styles.safe]}>
+            <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background.primary} />
 
             {/* Header */}
             <View style={styles.header}>
@@ -510,25 +515,25 @@ export default function SettingsScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.background.secondary },
+    safe: { flex: 1, backgroundColor: '#FAFAFA' },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: spacing.base,
         paddingVertical: spacing.md,
-        backgroundColor: colors.white,
+        backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
-        borderBottomColor: colors.gray[100],
+        borderBottomColor: '#F5F5F5',
         ...shadows.sm,
     },
     closeBtn: {
         width: 36, height: 36,
         borderRadius: borderRadius.full,
-        backgroundColor: colors.gray[100],
+        backgroundColor: '#F5F5F5',
         alignItems: 'center', justifyContent: 'center',
     },
-    headerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
+    headerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
     scroll: { flex: 1 },
     content: { padding: spacing.base, paddingBottom: 48, gap: spacing.base },
 
@@ -536,30 +541,30 @@ const styles = StyleSheet.create({
     profileCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.white,
+        backgroundColor: '#FFFFFF',
         borderRadius: borderRadius.lg,
         padding: spacing.base,
         gap: spacing.md,
         ...shadows.sm,
     },
     profileInfo: { flex: 1, minWidth: 0 },
-    profileName: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
-    profileEmail: { fontSize: fontSize.small, color: colors.text.tertiary, marginTop: 2 },
-    profileRole: { fontSize: fontSize.small, color: colors.primary[600], marginTop: 2, fontWeight: fontWeight.medium },
+    profileName: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+    profileEmail: { fontSize: fontSize.small, color: '#737373', marginTop: 2 },
+    profileRole: { fontSize: fontSize.small, color: '#EAAB00', marginTop: 2, fontWeight: fontWeight.medium },
     editChip: {
-        backgroundColor: colors.primary[50],
+        backgroundColor: '#FFFBEB',
         borderRadius: borderRadius.full,
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.xs,
         borderWidth: 1,
-        borderColor: colors.primary[200],
+        borderColor: '#FDE68A',
     },
-    editChipText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.primary[600] },
+    editChipText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#EAAB00' },
 
     // Sections
     section: { gap: spacing.sm },
-    sectionTitle: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: colors.gray[500], letterSpacing: 0.8, paddingLeft: spacing.xs },
-    sectionCard: { backgroundColor: colors.white, borderRadius: borderRadius.lg, overflow: 'hidden', ...shadows.sm },
+    sectionTitle: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: '#737373', letterSpacing: 0.8, paddingLeft: spacing.xs },
+    sectionCard: { backgroundColor: '#FFFFFF', borderRadius: borderRadius.lg, overflow: 'hidden', ...shadows.sm },
 
     // Rows
     row: {
@@ -569,15 +574,15 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.md,
         gap: spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: colors.gray[100],
+        borderBottomColor: '#F5F5F5',
     },
     rowLast: { borderBottomWidth: 0 },
     rowIcon: { width: 32, height: 32, borderRadius: borderRadius.sm, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-    rowLabel: { flex: 1, fontSize: fontSize.base, color: colors.text.primary, fontWeight: fontWeight.medium },
+    rowLabel: { flex: 1, fontSize: fontSize.base, color: '#0F0F0F', fontWeight: fontWeight.medium },
     rowLabelCol: { flex: 1 },
-    rowSubtitle: { fontSize: fontSize.small, color: colors.text.tertiary, marginTop: 2 },
+    rowSubtitle: { fontSize: fontSize.small, color: '#737373', marginTop: 2 },
     rowRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-    rowValue: { fontSize: fontSize.small, color: colors.text.tertiary, maxWidth: 120 },
+    rowValue: { fontSize: fontSize.small, color: '#737373', maxWidth: 120 },
 
     // Logout
     logoutBtn: {
@@ -585,22 +590,22 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: spacing.md,
-        backgroundColor: colors.error[50],
+        backgroundColor: '#FEF2F2',
         borderRadius: borderRadius.lg,
         paddingVertical: spacing.base,
         borderWidth: 1,
-        borderColor: colors.error[100],
+        borderColor: '#FEE2E2',
     },
-    logoutText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.error[500] },
+    logoutText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#EF4444' },
 
-    footerText: { textAlign: 'center', fontSize: fontSize.small, color: colors.gray[400] },
+    footerText: { textAlign: 'center', fontSize: fontSize.small, color: '#A3A3A3' },
 });
 
 // ─── Edit Profile Modal Styles ────────────────────────────────
 const eModal = StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     sheet: {
-        backgroundColor: colors.white,
+        backgroundColor: '#FFFFFF',
         borderTopLeftRadius: borderRadius.xl,
         borderTopRightRadius: borderRadius.xl,
         maxHeight: '85%',
@@ -608,25 +613,25 @@ const eModal = StyleSheet.create({
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         padding: spacing.base,
-        borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+        borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
     },
-    title: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
-    cancel: { fontSize: fontSize.base, color: colors.gray[500] },
-    save: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primary[600] },
+    title: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+    cancel: { fontSize: fontSize.base, color: '#737373' },
+    save: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#EAAB00' },
     avatarSection: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.sm },
     changePhotoBtn: {
         flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-        backgroundColor: colors.primary[50], paddingHorizontal: spacing.md,
+        backgroundColor: '#FFFBEB', paddingHorizontal: spacing.md,
         paddingVertical: spacing.xs, borderRadius: borderRadius.full,
     },
-    changePhotoText: { fontSize: fontSize.small, color: colors.primary[600], fontWeight: fontWeight.medium },
+    changePhotoText: { fontSize: fontSize.small, color: '#EAAB00', fontWeight: fontWeight.medium },
     body: { paddingHorizontal: spacing.base },
     fieldWrapper: { marginBottom: spacing.base },
-    label: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.secondary, marginBottom: spacing.xs },
+    label: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#333333', marginBottom: spacing.xs },
     input: {
-        borderWidth: 1, borderColor: colors.gray[300], borderRadius: borderRadius.md,
+        borderWidth: 1, borderColor: '#D4D4D4', borderRadius: borderRadius.md,
         paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-        fontSize: fontSize.base, color: colors.text.primary, minHeight: 48,
+        fontSize: fontSize.base, color: '#0F0F0F', minHeight: 48,
     },
 });
 
@@ -634,39 +639,39 @@ const eModal = StyleSheet.create({
 const pModal = StyleSheet.create({
     inputRow: {
         flexDirection: 'row', alignItems: 'center',
-        borderWidth: 1, borderColor: colors.gray[300],
+        borderWidth: 1, borderColor: '#D4D4D4',
         borderRadius: borderRadius.md, minHeight: 48,
         paddingHorizontal: spacing.base,
     },
-    input: { flex: 1, fontSize: fontSize.base, color: colors.text.primary, paddingVertical: spacing.md },
+    input: { flex: 1, fontSize: fontSize.base, color: '#0F0F0F', paddingVertical: spacing.md },
     eyeBtn: { padding: spacing.sm },
-    hint: { backgroundColor: colors.gray[50], borderRadius: borderRadius.md, padding: spacing.base, gap: 4, marginBottom: spacing.lg },
-    hintText: { fontSize: fontSize.small, color: colors.text.tertiary },
+    hint: { backgroundColor: '#FAFAFA', borderRadius: borderRadius.md, padding: spacing.base, gap: 4, marginBottom: spacing.lg },
+    hintText: { fontSize: fontSize.small, color: '#737373' },
 });
 
 // ─── Theme Sheet Styles ───────────────────────────────────────
 const themeModal = StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     sheet: {
-        backgroundColor: colors.white,
+        backgroundColor: '#FFFFFF',
         borderTopLeftRadius: borderRadius.xl,
         borderTopRightRadius: borderRadius.xl,
     },
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        padding: spacing.base, borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+        padding: spacing.base, borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
     },
-    title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
+    title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
     option: {
         flexDirection: 'row', alignItems: 'center', gap: spacing.md,
         paddingVertical: spacing.base, paddingHorizontal: spacing.lg,
-        borderBottomWidth: 1, borderBottomColor: colors.gray[50],
+        borderBottomWidth: 1, borderBottomColor: '#FAFAFA',
     },
-    optionActive: { backgroundColor: colors.primary[50] },
+    optionActive: { backgroundColor: '#FFFBEB' },
     optionIcon: {
         width: 36, height: 36, borderRadius: borderRadius.sm,
-        backgroundColor: colors.gray[100], alignItems: 'center', justifyContent: 'center',
+        backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
     },
-    optionText: { flex: 1, fontSize: fontSize.base, color: colors.text.primary, fontWeight: fontWeight.medium },
-    optionTextActive: { color: colors.primary[700], fontWeight: fontWeight.semibold },
+    optionText: { flex: 1, fontSize: fontSize.base, color: '#0F0F0F', fontWeight: fontWeight.medium },
+    optionTextActive: { color: '#CA8A04', fontWeight: fontWeight.semibold },
 });

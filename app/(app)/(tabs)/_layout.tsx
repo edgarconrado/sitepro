@@ -6,9 +6,10 @@
 import { SideMenu } from '@components/layout/SideMenu';
 import { TopBar } from '@components/layout/TopBar';
 import { AnimatedTabIcon } from '@components/ui/Animated';
+import { OfflineBanner } from '@components/ui/OfflineBanner';
 import { useMenu } from '@hooks/useMenu';
+import { useTheme } from '@hooks/useTheme';
 import { useAppStore } from '@store/appStore';
-import { colors } from '@theme/colors';
 import { fontWeight } from '@theme/tokens';
 import { Tabs } from 'expo-router';
 import { Camera, CheckSquare, Home, MessageSquare, Users } from 'lucide-react-native';
@@ -26,6 +27,8 @@ function TabIcon({
   focused: boolean;
   count?: number;
 }) {
+  const { colors, isDark } = useTheme();
+  const styles = make_styles(colors);
   return (
     <View style={styles.tabItem}>
       <AnimatedTabIcon focused={focused}>
@@ -45,6 +48,8 @@ function TabIcon({
 }
 
 export default function TabsLayout() {
+  const { colors, isDark } = useTheme();
+  const styles = make_styles(colors);
   const unreadNotifications = useAppStore((s) => s.unreadNotifications);
   const { isOpen, close } = useMenu();
 
@@ -54,6 +59,7 @@ export default function TabsLayout() {
   return (
     <View style={{ flex: 1 }}>
       <TopBar />
+      <OfflineBanner />
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -119,7 +125,7 @@ export default function TabsLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const make_styles = (colors: any) => StyleSheet.create({
   tabBar: {
     backgroundColor: colors.white,
     borderTopWidth: 1,

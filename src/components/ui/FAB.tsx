@@ -1,12 +1,12 @@
 /**
  * SitePro — Floating Action Button (FAB)
  */
-
-import React from 'react';
-import { TouchableOpacity, StyleSheet } from 'react-native';
+import { colors } from '@/theme';
+import { useTheme } from '@hooks/useTheme';
+import { borderRadius, iconSize, shadows, touchSize } from '@theme/tokens';
 import { Plus } from 'lucide-react-native';
-import { colors } from '@theme/colors';
-import { shadows, touchSize, borderRadius, iconSize } from '@theme/tokens';
+import React from 'react';
+import { StyleSheet, TouchableOpacity } from 'react-native';
 
 interface FABProps {
   onPress: () => void;
@@ -21,13 +21,14 @@ export function FAB({
   color = colors.primary[600],
   bottom = 96,
 }: FABProps) {
+  const { colors, isDark } = useTheme();
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.85}
       style={[styles.fab, { backgroundColor: color, bottom }]}
     >
-      {icon ?? <Plus size={iconSize.lg} color={colors.white} strokeWidth={2.5} />}
+      {icon ?? <Plus size={iconSize.lg} color={colors.dark[900]} strokeWidth={2.5} />}
     </TouchableOpacity>
   );
 }

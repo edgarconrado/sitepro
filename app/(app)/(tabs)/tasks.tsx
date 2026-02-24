@@ -2,11 +2,16 @@
  * SitePro — Tasks Screen
  */
 
+import { EmptySearch, EmptyTasks } from '@/components/ui/EmptyStates';
+import { colors } from '@/theme';
 import { Avatar } from '@components/ui/Avatar';
 import { Badge } from '@components/ui/Badge';
+import { ConfirmDialogContainer, useConfirm } from '@components/ui/ConfirmDialog';
 import { FAB } from '@components/ui/FAB';
+import { TasksScreenSkeleton, useSimulatedLoading } from '@components/ui/Skeletons';
+import { useToast } from '@components/ui/Toast';
+import { useTheme } from '@hooks/useTheme';
 import { useAppStore } from '@store/appStore';
-import { colors } from '@theme/colors';
 import {
   borderRadius,
   fontSize,
@@ -23,7 +28,6 @@ import {
 } from '@utils/index';
 import {
   AlertCircle,
-  AlertTriangle,
   Calendar,
   CheckCircle2,
   CheckCircle2 as CheckIcon,
@@ -63,7 +67,8 @@ const FILTERS: { label: string; value: FilterType }[] = [
 ];
 
 function StatusIcon({ status, size = iconSize.md }: { status: TaskStatus; size?: number }) {
-  const sc = getTaskStatusColors(status);
+  const { colors, isDark } = useTheme();
+  const sc = getTaskStatusColors(status, colors);
   switch (status) {
     case 'Urgente': return <AlertCircle size={size} color={sc.icon} />;
     case 'En Progreso': return <Clock size={size} color={sc.icon} />;
@@ -472,10 +477,12 @@ function NewTaskModal({ visible, onClose }: { visible: boolean; onClose: () => v
 }
 
 function TaskDetailModal({ task, onClose }: { task: Task | null; onClose: () => void }) {
-  const { updateTaskStatus } = useAppStore();
+  const { updateTaskStatus, deleteTask } = useAppStore();
+  const confirm = useConfirm();
+  const toast = useToast();
   if (!task) return null;
-  const statusColors = getTaskStatusColors(task.status);
-  const priorityColors = getTaskPriorityColors(task.priority);
+  const statusColors = getTaskStatusColors(task.status, colors);
+  const priorityColors = getTaskPriorityColors(task.priority, colors);
 
   return (
     <Modal visible={!!task} transparent animationType="slide">
@@ -543,20 +550,32 @@ function TaskDetailModal({ task, onClose }: { task: Task | null; onClose: () => 
               <Text style={tModal.btnSecondaryText}>Cerrar</Text>
             </TouchableOpacity>
             {task.status !== 'Completada' && (
-              <TouchableOpacity style={tModal.btnDanger} activeOpacity={0.85}>
+              <TouchableOpacity
+                style={tModal.btnDanger}
+                activeOpacity={0.85}
+                onPress={() => confirm.confirm({
+                  title: 'Eliminar tarea',
+                  message: `¿Eliminar "${task.title}"? Esta acción no se puede deshacer.`,
+                  confirmLabel: 'Sí, eliminar',
+                  icon: 'trash',
+                  variant: 'danger',
+                  onConfirm: () => { try { deleteTask(task.id); toast.success('Tarea eliminada', task.title); onClose(); } catch { toast.error('Error al eliminar', 'Inténtalo de nuevo'); } },
+                })}
+              >
                 <Text style={tModal.btnDangerText}>Eliminar tarea</Text>
               </TouchableOpacity>
             )}
           </View>
         </View>
       </View>
+      <ConfirmDialogContainer />
     </Modal>
   );
 }
 
 function TaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
-  const statusColors = getTaskStatusColors(task.status);
-  const priorityColors = getTaskPriorityColors(task.priority);
+  const statusColors = task ? getTaskStatusColors(task.status, colors) : {};
+  const priorityColors = task ? getTaskPriorityColors(task.priority, colors) : {};
 
   return (
     <TouchableOpacity style={styles.taskCard} onPress={onPress} activeOpacity={0.88}>
@@ -588,6 +607,8 @@ function TaskCard({ task, onPress }: { task: Task; onPress: () => void }) {
 }
 
 export default function TasksScreen() {
+  const { colors, isDark } = useTheme();
+
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('Todas');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -621,6 +642,9 @@ export default function TasksScreen() {
     const count = f.value === 'Todas' ? counts.Todas : counts[f.value as TaskStatus] ?? 0;
     return `${f.label} (${count})`;
   };
+
+  const isLoading = useSimulatedLoading();
+  if (isLoading) return <TasksScreenSkeleton />;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -661,25 +685,25 @@ export default function TasksScreen() {
       </View>
 
       {/* Task List */}
-      {filtered.length === 0 ? (
-        <View style={styles.emptyState}>
-          <AlertTriangle size={40} color={colors.gray[300]} />
-          <Text style={styles.emptyTitle}>Sin resultados</Text>
-          <Text style={styles.emptySubtitle}>
-            {search ? `No se encontraron tareas para "${search}"` : 'No hay tareas en esta categoría'}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <TaskCard task={item} onPress={() => setSelectedTask(item)} />
-          )}
+      {filtered.length === 0 ? (search
+        ? <EmptySearch title="Sin resultados" subtitle={`No se encontraron tareas para "${search}"`} />
+        : <EmptyTasks
+          title="Sin tareas aquí"
+          subtitle="Esta categoría no tiene tareas todavía. Crea la primera para empezar."
+          cta={{ label: '+ Nueva tarea', onPress: () => setShowNewTask(true) }}
         />
-      )}
+      )
+        : (
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <TaskCard task={item} onPress={() => setSelectedTask(item)} />
+            )}
+          />
+        )}
 
       <FAB onPress={() => setShowNewTask(true)} />
       <TaskDetailModal task={selectedTask} onClose={() => setSelectedTask(null)} />
@@ -689,81 +713,81 @@ export default function TasksScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background.secondary },
+  safe: { flex: 1, backgroundColor: '#FAFAFA' },
   header: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: spacing.base,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: '#F5F5F5',
     ...shadows.sm,
   },
-  screenTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.text.primary, marginBottom: spacing.md },
+  screenTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: '#0F0F0F', marginBottom: spacing.md },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: colors.gray[300],
+    borderColor: '#D4D4D4',
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.md,
     height: 40,
     marginBottom: spacing.md,
     gap: spacing.sm,
   },
-  searchInput: { flex: 1, fontSize: fontSize.body, color: colors.text.primary, paddingVertical: 0 },
+  searchInput: { flex: 1, fontSize: fontSize.body, color: '#0F0F0F', paddingVertical: 0 },
   filtersScroll: { marginHorizontal: -spacing.base },
   filtersContent: { paddingHorizontal: spacing.base, gap: spacing.sm },
-  pill: { paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderRadius: borderRadius.full, backgroundColor: colors.gray[100] },
-  pillActive: { backgroundColor: colors.primary[600] },
-  pillText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.gray[700] },
-  pillTextActive: { color: colors.white },
+  pill: { paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderRadius: borderRadius.full, backgroundColor: '#F5F5F5' },
+  pillActive: { backgroundColor: '#EAAB00' },
+  pillText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#333333' },
+  pillTextActive: { color: '#FFFFFF' },
   listContent: { padding: spacing.base, gap: spacing.md, paddingBottom: 100 },
   taskCard: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: colors.gray[100],
+    borderColor: '#F5F5F5',
     padding: spacing.base,
     gap: spacing.sm,
     ...shadows.sm,
   },
   taskRow1: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  taskTitle: { flex: 1, fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.text.primary },
+  taskTitle: { flex: 1, fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#0F0F0F' },
   taskRow2: { flexDirection: 'row', gap: spacing.sm },
   taskRow3: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.base },
   taskMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  taskMetaText: { fontSize: fontSize.small, color: colors.gray[500] },
+  taskMetaText: { fontSize: fontSize.small, color: '#737373' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.xl },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.secondary },
-  emptySubtitle: { fontSize: fontSize.body, color: colors.text.tertiary, textAlign: 'center' },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#333333' },
+  emptySubtitle: { fontSize: fontSize.body, color: '#737373', textAlign: 'center' },
 });
 
 const tModal = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.white, borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, maxHeight: '90%' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, borderBottomWidth: 1, borderBottomColor: colors.gray[200] },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
+  sheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, maxHeight: '90%' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, borderBottomWidth: 1, borderBottomColor: '#E8E8E8' },
+  headerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
   body: { padding: spacing.base },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginBottom: spacing.sm },
-  taskTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.text.primary, flex: 1 },
+  taskTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: '#0F0F0F', flex: 1 },
   badgesRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.base, flexWrap: 'wrap' },
-  descCard: { backgroundColor: colors.background.secondary, borderRadius: borderRadius.md, padding: spacing.base, marginBottom: spacing.base },
-  descLabel: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.secondary, marginBottom: spacing.xs },
-  descText: { fontSize: fontSize.body, color: colors.text.tertiary, lineHeight: 20 },
+  descCard: { backgroundColor: '#FAFAFA', borderRadius: borderRadius.md, padding: spacing.base, marginBottom: spacing.base },
+  descLabel: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#333333', marginBottom: spacing.xs },
+  descText: { fontSize: fontSize.body, color: '#737373', lineHeight: 20 },
   infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg },
-  infoCard: { width: '47%', backgroundColor: colors.background.secondary, borderRadius: borderRadius.md, padding: spacing.base, gap: spacing.xs },
-  infoLabel: { fontSize: fontSize.small, color: colors.text.tertiary },
+  infoCard: { width: '47%', backgroundColor: '#FAFAFA', borderRadius: borderRadius.md, padding: spacing.base, gap: spacing.xs },
+  infoLabel: { fontSize: fontSize.small, color: '#737373' },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  infoValue: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.primary },
-  actions: { padding: spacing.base, gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.gray[100], paddingBottom: 32 },
-  btnPrimary: { backgroundColor: colors.primary[600], paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: spacing.sm },
-  btnPrimaryText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.white },
-  btnSecondary: { backgroundColor: colors.gray[100], paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
-  btnSecondaryText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.text.secondary },
-  btnDanger: { backgroundColor: colors.error[50], paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
-  btnDangerText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.error[500] },
+  infoValue: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#0F0F0F' },
+  actions: { padding: spacing.base, gap: spacing.sm, borderTopWidth: 1, borderTopColor: '#F5F5F5', paddingBottom: 32 },
+  btnPrimary: { backgroundColor: '#EAAB00', paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: spacing.sm },
+  btnPrimaryText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: '#FFFFFF' },
+  btnSecondary: { backgroundColor: '#F5F5F5', paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
+  btnSecondaryText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: '#333333' },
+  btnDanger: { backgroundColor: '#FEF2F2', paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
+  btnDangerText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: '#EF4444' },
 });
 
 // ─── Form Styles ──────────────────────────────────────────────
@@ -772,38 +796,38 @@ const form = StyleSheet.create({
   label: {
     fontSize: fontSize.body,
     fontWeight: fontWeight.medium,
-    color: colors.text.secondary,
+    color: '#333333',
     marginBottom: spacing.xs,
   },
   input: {
     borderWidth: 1,
-    borderColor: colors.gray[300],
+    borderColor: '#D4D4D4',
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     fontSize: fontSize.base,
-    color: colors.text.primary,
-    backgroundColor: colors.white,
+    color: '#0F0F0F',
+    backgroundColor: '#FFFFFF',
     minHeight: 48,
   },
   textArea: { minHeight: 100, paddingTop: spacing.md },
-  inputError: { borderColor: colors.error[500], borderWidth: 1.5 },
-  errorText: { fontSize: fontSize.small, color: colors.error[500], marginTop: spacing.xs },
-  charCount: { fontSize: fontSize.small, color: colors.gray[400], textAlign: 'right', marginTop: 4 },
+  inputError: { borderColor: '#EF4444', borderWidth: 1.5 },
+  errorText: { fontSize: fontSize.small, color: '#EF4444', marginTop: spacing.xs },
+  charCount: { fontSize: fontSize.small, color: '#A3A3A3', textAlign: 'right', marginTop: 4 },
   selectorBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.gray[300],
+    borderColor: '#D4D4D4',
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     minHeight: 48,
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     gap: spacing.sm,
   },
-  selectorValue: { flex: 1, fontSize: fontSize.base, color: colors.text.primary },
-  selectorPlaceholder: { flex: 1, fontSize: fontSize.base, color: colors.gray[400] },
+  selectorValue: { flex: 1, fontSize: fontSize.base, color: '#0F0F0F' },
+  selectorPlaceholder: { flex: 1, fontSize: fontSize.base, color: '#A3A3A3' },
   priorityDot: { width: 10, height: 10, borderRadius: 5 },
   row: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.base },
 });
@@ -812,7 +836,7 @@ const form = StyleSheet.create({
 const sheet = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   container: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     maxHeight: '60%',
@@ -824,9 +848,9 @@ const sheet = StyleSheet.create({
     justifyContent: 'space-between',
     padding: spacing.base,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[200],
+    borderBottomColor: '#E8E8E8',
   },
-  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
+  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -834,23 +858,23 @@ const sheet = StyleSheet.create({
     paddingHorizontal: spacing.base,
     gap: spacing.md,
   },
-  optionSelected: { backgroundColor: colors.primary[50] },
-  optionText: { flex: 1, fontSize: fontSize.base, color: colors.text.primary },
-  optionTextSelected: { color: colors.primary[700], fontWeight: fontWeight.semibold },
-  optionSubtext: { fontSize: fontSize.small, color: colors.text.tertiary },
+  optionSelected: { backgroundColor: '#FFFBEB' },
+  optionText: { flex: 1, fontSize: fontSize.base, color: '#0F0F0F' },
+  optionTextSelected: { color: '#CA8A04', fontWeight: fontWeight.semibold },
+  optionSubtext: { fontSize: fontSize.small, color: '#737373' },
   avatarCircle: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: colors.white },
+  avatarText: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: '#FFFFFF' },
 });
 
 // ─── New Task Modal Styles ────────────────────────────────────
 const nModal = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet: {
-    backgroundColor: colors.background.secondary,
+    backgroundColor: '#FAFAFA',
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     maxHeight: '95%',
@@ -861,21 +885,21 @@ const nModal = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: '#F5F5F5',
   },
-  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
+  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F' },
   cancelBtn: { padding: spacing.xs },
-  cancelText: { fontSize: fontSize.base, color: colors.gray[500] },
+  cancelText: { fontSize: fontSize.base, color: '#737373' },
   saveBtn: {
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.xs + 2,
     borderRadius: borderRadius.sm,
   },
-  saveText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },
+  saveText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#FFFFFF' },
   body: { padding: spacing.base },
 });

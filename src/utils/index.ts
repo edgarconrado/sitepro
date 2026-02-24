@@ -2,8 +2,9 @@
  * SitePro — Utilidades
  */
 
-import { colors } from '@theme/colors';
-import type { TaskStatus, TaskPriority, ProjectStatus } from '@types/index';
+import type { Colors } from '@theme/colors';
+import { colors as defaultColors } from '@theme/colors';
+import type { ProjectStatus, TaskPriority, TaskStatus } from '@types/index';
 
 // ─── Fechas ───────────────────────────────────────────────────
 export function formatDate(isoString: string): string {
@@ -63,7 +64,7 @@ export function truncate(text: string, maxLength: number): string {
 }
 
 // ─── Colores de estado de tarea ───────────────────────────────
-export function getTaskStatusColors(status: TaskStatus) {
+export function getTaskStatusColors(status: TaskStatus, colors: Colors = defaultColors) {
   const map: Record<TaskStatus, { bg: string; text: string; icon: string }> = {
     Urgente: {
       bg: colors.error[100],
@@ -90,7 +91,7 @@ export function getTaskStatusColors(status: TaskStatus) {
 }
 
 // ─── Colores de prioridad ─────────────────────────────────────
-export function getTaskPriorityColors(priority: TaskPriority) {
+export function getTaskPriorityColors(priority: TaskPriority, colors: Colors = defaultColors) {
   const map: Record<TaskPriority, { bg: string; text: string }> = {
     Alta: { bg: colors.error[100], text: colors.error[700] },
     Media: { bg: colors.warning[100], text: colors.warning[700] },
@@ -100,7 +101,7 @@ export function getTaskPriorityColors(priority: TaskPriority) {
 }
 
 // ─── Colores de estado de proyecto ───────────────────────────
-export function getProjectStatusColors(status: ProjectStatus) {
+export function getProjectStatusColors(status: ProjectStatus, colors: Colors = defaultColors) {
   const map: Record<ProjectStatus, { bg: string; text: string }> = {
     'En Progreso': { bg: colors.primary[100], text: colors.primary[800] },
     'En Revisión': { bg: colors.warning[100], text: colors.warning[700] },

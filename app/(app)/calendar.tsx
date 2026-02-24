@@ -4,7 +4,9 @@
  * Eventos: Tareas, Reuniones, Hitos, Permisos
  */
 
-import { colors } from '@theme/colors';
+import { colors } from '@/theme';
+import { EmptyCalendar } from '@components/ui/EmptyStates';
+import { useTheme } from '@hooks/useTheme';
 import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
 import { router } from 'expo-router';
 import {
@@ -439,10 +441,11 @@ function AgendaView({ events, onEventPress }: { events: CalEvent[]; onEventPress
   }, [events]);
 
   if (!grouped.length) return (
-    <View style={styles.agendaEmpty}>
-      <CalIcon size={40} color={colors.gray[300]} />
-      <Text style={styles.agendaEmptyTitle}>Sin próximos eventos</Text>
-    </View>
+    <EmptyCalendar
+      title="Sin próximos eventos"
+      subtitle="No hay eventos agendados. Crea reuniones, inspecciones y entregas para organizar el proyecto."
+      cta={{ label: '+ Crear evento', onPress: () => { } }}
+    />
   );
 
   return (
@@ -767,6 +770,7 @@ function NewEventModal({
 
 // ─── Main Screen ──────────────────────────────────────────────
 export default function CalendarScreen() {
+  const { colors, isDark } = useTheme();
   const today = new Date(2026, 1, 19); // 19 Feb 2026
   const [view, setView] = useState<CalView>('Semana');
   const [selectedDate, setSelectedDate] = useState<Date>(today);
@@ -933,77 +937,77 @@ export default function CalendarScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.white },
+  safe: { flex: 1, backgroundColor: '#FFFFFF' },
 
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
     gap: spacing.md, ...shadows.sm,
   },
   backBtn: {
     width: 36, height: 36, borderRadius: borderRadius.full,
-    backgroundColor: colors.gray[100], alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { flex: 1, fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.text.primary },
+  headerTitle: { flex: 1, fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: '#0F0F0F' },
   todayBtn: {
-    backgroundColor: colors.primary[50], borderRadius: borderRadius.full,
+    backgroundColor: '#FFFBEB', borderRadius: borderRadius.full,
     paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2,
-    borderWidth: 1, borderColor: colors.primary[200],
+    borderWidth: 1, borderColor: '#FDE68A',
   },
-  todayText: { fontSize: fontSize.small, fontWeight: fontWeight.semibold, color: colors.primary[600] },
+  todayText: { fontSize: fontSize.small, fontWeight: fontWeight.semibold, color: '#EAAB00' },
 
   // View tabs
   viewTabs: {
     flexDirection: 'row',
-    backgroundColor: colors.gray[100],
+    backgroundColor: '#F5F5F5',
     margin: spacing.base,
     borderRadius: borderRadius.md,
     padding: 3,
   },
   viewTab: { flex: 1, paddingVertical: spacing.sm, alignItems: 'center', borderRadius: borderRadius.sm - 2 },
-  viewTabActive: { backgroundColor: colors.white, ...shadows.sm },
-  viewTabText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.gray[500] },
-  viewTabTextActive: { color: colors.primary[600], fontWeight: fontWeight.bold },
+  viewTabActive: { backgroundColor: '#FFFFFF', ...shadows.sm },
+  viewTabText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#737373' },
+  viewTabTextActive: { color: '#EAAB00', fontWeight: fontWeight.bold },
 
   // Type filters
-  typeFilters: { borderBottomWidth: 1, borderBottomColor: colors.gray[100], paddingBottom: spacing.sm },
+  typeFilters: { borderBottomWidth: 1, borderBottomColor: '#F5F5F5', paddingBottom: spacing.sm },
   typeFiltersContent: { paddingHorizontal: spacing.base, gap: spacing.sm },
   typeChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 1,
-    borderRadius: borderRadius.full, backgroundColor: colors.gray[100],
+    borderRadius: borderRadius.full, backgroundColor: '#F5F5F5',
   },
-  typeChipText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.gray[500] },
+  typeChipText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#737373' },
 
   // Nav bar
   navBar: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.sm, paddingVertical: spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
   },
   navBtn: { padding: spacing.sm },
-  navTitle: { flex: 1, textAlign: 'center', fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.text.primary },
+  navTitle: { flex: 1, textAlign: 'center', fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: '#0F0F0F' },
 
   content: { flex: 1 },
 
   // Week view
-  weekHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.gray[100] },
+  weekHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
   weekDayCol: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm },
-  weekDayName: { fontSize: 9, fontWeight: fontWeight.medium, color: colors.gray[400], marginBottom: 4 },
+  weekDayName: { fontSize: 9, fontWeight: fontWeight.medium, color: '#A3A3A3', marginBottom: 4 },
   weekDayNum: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  weekDayNumToday: { backgroundColor: colors.primary[600] },
-  weekDayNumSelected: { borderWidth: 2, borderColor: colors.primary[300] },
-  weekDayNumText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.primary },
-  weekDayNumTextToday: { color: colors.white, fontWeight: fontWeight.bold },
+  weekDayNumToday: { backgroundColor: '#EAAB00' },
+  weekDayNumSelected: { borderWidth: 2, borderColor: '#FCD34D' },
+  weekDayNumText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#0F0F0F' },
+  weekDayNumTextToday: { color: '#FFFFFF', fontWeight: fontWeight.bold },
   allDayRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
-    backgroundColor: colors.gray[50], borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    backgroundColor: '#FAFAFA', borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
     gap: spacing.sm,
   },
-  allDayLabel: { fontSize: 9, color: colors.gray[400], width: 44 },
+  allDayLabel: { fontSize: 9, color: '#A3A3A3', width: 44 },
   weekGrid: { flexDirection: 'row', padding: spacing.xs, gap: spacing.xs, paddingBottom: spacing.xl },
   weekDayEventsCol: { flex: 1, gap: spacing.xs },
   weekEmpty: { height: 8 },
@@ -1016,47 +1020,47 @@ const styles = StyleSheet.create({
 
   // Month view
   monthDayNames: { flexDirection: 'row', paddingHorizontal: spacing.xs, paddingVertical: spacing.sm },
-  monthDayName: { flex: 1, textAlign: 'center', fontSize: 10, fontWeight: fontWeight.medium, color: colors.gray[400] },
+  monthDayName: { flex: 1, textAlign: 'center', fontSize: 10, fontWeight: fontWeight.medium, color: '#A3A3A3' },
   monthWeekRow: { flexDirection: 'row', paddingHorizontal: spacing.xs },
   monthCell: { flex: 1, alignItems: 'center', paddingVertical: spacing.xs },
   monthCellNum: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  monthCellToday: { backgroundColor: colors.primary[600] },
-  monthCellSelected: { borderWidth: 2, borderColor: colors.primary[300] },
-  monthCellText: { fontSize: fontSize.body, color: colors.text.primary },
-  monthCellTextOut: { color: colors.gray[300] },
-  monthCellTextToday: { color: colors.white, fontWeight: fontWeight.bold },
+  monthCellToday: { backgroundColor: '#EAAB00' },
+  monthCellSelected: { borderWidth: 2, borderColor: '#FCD34D' },
+  monthCellText: { fontSize: fontSize.body, color: '#0F0F0F' },
+  monthCellTextOut: { color: '#D4D4D4' },
+  monthCellTextToday: { color: '#FFFFFF', fontWeight: fontWeight.bold },
   monthDots: { flexDirection: 'row', gap: 2, marginTop: 2, height: 6 },
   monthDot: { width: 5, height: 5, borderRadius: 3 },
-  monthSelectedEvents: { padding: spacing.base, borderTopWidth: 1, borderTopColor: colors.gray[100], gap: spacing.sm },
-  monthSelectedTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.text.secondary, marginBottom: spacing.xs },
+  monthSelectedEvents: { padding: spacing.base, borderTopWidth: 1, borderTopColor: '#F5F5F5', gap: spacing.sm },
+  monthSelectedTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: '#333333', marginBottom: spacing.xs },
   monthSelectedEmpty: { padding: spacing.lg, alignItems: 'center' },
-  monthSelectedEmptyText: { fontSize: fontSize.body, color: colors.text.tertiary },
+  monthSelectedEmptyText: { fontSize: fontSize.body, color: '#737373' },
 
   // Agenda view
   agendaContent: { padding: spacing.base, gap: spacing.lg, paddingBottom: 40 },
   agendaEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingTop: 80 },
-  agendaEmptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.tertiary },
+  agendaEmptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#737373' },
   agendaGroup: { gap: spacing.sm },
   agendaDateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   agendaDateBubble: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: colors.gray[100], alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
   },
-  agendaDateBubbleToday: { backgroundColor: colors.primary[600] },
-  agendaDateDay: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
-  agendaDateLabel: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.text.primary },
-  agendaDateSub: { fontSize: fontSize.small, color: colors.text.tertiary },
+  agendaDateBubbleToday: { backgroundColor: '#EAAB00' },
+  agendaDateDay: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  agendaDateLabel: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: '#0F0F0F' },
+  agendaDateSub: { fontSize: fontSize.small, color: '#737373' },
   agendaEvents: { paddingLeft: 52, gap: spacing.sm },
   agendaEvent: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.white, borderRadius: borderRadius.md,
+    backgroundColor: '#FFFFFF', borderRadius: borderRadius.md,
     borderLeftWidth: 4, padding: spacing.md, gap: spacing.md,
     ...shadows.sm,
   },
   agendaEventIcon: { width: 30, height: 30, borderRadius: borderRadius.sm, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   agendaEventInfo: { flex: 1 },
-  agendaEventTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.text.primary },
-  agendaEventMeta: { fontSize: fontSize.small, color: colors.text.tertiary, marginTop: 2 },
+  agendaEventTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: '#0F0F0F' },
+  agendaEventMeta: { fontSize: fontSize.small, color: '#737373', marginTop: 2 },
   agendaTypeBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: borderRadius.full },
   agendaTypeText: { fontSize: 9, fontWeight: fontWeight.bold },
 
@@ -1067,7 +1071,7 @@ const styles = StyleSheet.create({
     bottom: spacing.lg,
     width: 56, height: 56,
     borderRadius: 28,
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
     alignItems: 'center', justifyContent: 'center',
     ...shadows.xl,
   },
@@ -1077,45 +1081,45 @@ const styles = StyleSheet.create({
 const eModal = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl,
     maxHeight: '75%',
   },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.gray[200], alignSelf: 'center', marginTop: spacing.sm },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E8E8E8', alignSelf: 'center', marginTop: spacing.sm },
   header: {
     flexDirection: 'row', alignItems: 'flex-start',
     padding: spacing.base, gap: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
     marginTop: spacing.sm,
   },
   typeIcon: { width: 40, height: 40, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   headerInfo: { flex: 1 },
   typeLabel: { fontSize: fontSize.small, fontWeight: fontWeight.bold, marginBottom: 4 },
-  title: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary, lineHeight: 20 },
-  closeBtn: { padding: spacing.xs, backgroundColor: colors.gray[100], borderRadius: borderRadius.full },
+  title: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F', lineHeight: 20 },
+  closeBtn: { padding: spacing.xs, backgroundColor: '#F5F5F5', borderRadius: borderRadius.full },
   body: { padding: spacing.base },
   infoCard: {
-    backgroundColor: colors.background.secondary, borderRadius: borderRadius.md,
+    backgroundColor: '#FAFAFA', borderRadius: borderRadius.md,
     padding: spacing.base, gap: spacing.sm, marginBottom: spacing.base,
   },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  infoText: { fontSize: fontSize.body, color: colors.text.secondary },
-  descCard: { backgroundColor: colors.gray[50], borderRadius: borderRadius.md, padding: spacing.base, marginBottom: spacing.base },
-  descLabel: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.text.tertiary, marginBottom: spacing.xs },
-  descText: { fontSize: fontSize.body, color: colors.text.secondary, lineHeight: 20 },
+  infoText: { fontSize: fontSize.body, color: '#333333' },
+  descCard: { backgroundColor: '#FAFAFA', borderRadius: borderRadius.md, padding: spacing.base, marginBottom: spacing.base },
+  descLabel: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#737373', marginBottom: spacing.xs },
+  descText: { fontSize: fontSize.body, color: '#333333', lineHeight: 20 },
   closeFullBtn: {
-    margin: spacing.base, backgroundColor: colors.gray[100],
+    margin: spacing.base, backgroundColor: '#F5F5F5',
     borderRadius: borderRadius.md, paddingVertical: spacing.md, alignItems: 'center',
     marginBottom: 32,
   },
-  closeFullText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.text.secondary },
+  closeFullText: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: '#333333' },
 });
 
 // ─── New Event Modal Styles ───────────────────────────────────
 const nModal = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.background.secondary,
+    backgroundColor: '#FAFAFA',
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     maxHeight: '92%',
@@ -1123,39 +1127,39 @@ const nModal = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
   },
-  title: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
-  cancel: { fontSize: fontSize.base, color: colors.gray[500] },
-  saveBtn: { backgroundColor: colors.primary[600], paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
-  saveText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },
+  title: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  cancel: { fontSize: fontSize.base, color: '#737373' },
+  saveBtn: { backgroundColor: '#EAAB00', paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
+  saveText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#FFFFFF' },
   body: { padding: spacing.base },
-  label: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.text.secondary, marginBottom: spacing.xs, marginTop: spacing.md },
+  label: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#333333', marginBottom: spacing.xs, marginTop: spacing.md },
   input: {
-    borderWidth: 1, borderColor: colors.gray[300], borderRadius: borderRadius.md,
+    borderWidth: 1, borderColor: '#D4D4D4', borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    fontSize: fontSize.base, color: colors.text.primary,
-    backgroundColor: colors.white, minHeight: 48,
+    fontSize: fontSize.base, color: '#0F0F0F',
+    backgroundColor: '#FFFFFF', minHeight: 48,
   },
   textArea: { minHeight: 90, paddingTop: spacing.md },
-  charCount: { fontSize: fontSize.small, color: colors.gray[400], textAlign: 'right', marginTop: 4 },
+  charCount: { fontSize: fontSize.small, color: '#A3A3A3', textAlign: 'right', marginTop: 4 },
   typeSelector: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     borderWidth: 2, borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.white, minHeight: 48,
+    backgroundColor: '#FFFFFF', minHeight: 48,
   },
   typeDot: { width: 10, height: 10, borderRadius: 5 },
   typeSelectorText: { flex: 1, fontSize: fontSize.base, fontWeight: fontWeight.semibold },
   toggleRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: borderRadius.md,
+    backgroundColor: '#FFFFFF', borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    borderWidth: 1, borderColor: colors.gray[200], marginTop: spacing.md,
+    borderWidth: 1, borderColor: '#E8E8E8', marginTop: spacing.md,
   },
-  toggleLabel: { flex: 1, fontSize: fontSize.base, color: colors.text.primary, fontWeight: fontWeight.medium },
+  toggleLabel: { flex: 1, fontSize: fontSize.base, color: '#0F0F0F', fontWeight: fontWeight.medium },
   timeRow: { flexDirection: 'row', gap: spacing.md },
 });
 
@@ -1163,21 +1167,21 @@ const nModal = StyleSheet.create({
 const picker = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl,
   },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: spacing.base, borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    padding: spacing.base, borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
   },
-  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary },
+  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F' },
   option: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingVertical: spacing.md, paddingHorizontal: spacing.base,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[50],
+    borderBottomWidth: 1, borderBottomColor: '#FAFAFA',
   },
   optionIcon: { width: 36, height: 36, borderRadius: borderRadius.sm, alignItems: 'center', justifyContent: 'center' },
-  optionText: { flex: 1, fontSize: fontSize.base, color: colors.text.primary, fontWeight: fontWeight.medium },
+  optionText: { flex: 1, fontSize: fontSize.base, color: '#0F0F0F', fontWeight: fontWeight.medium },
   check: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  checkText: { color: colors.white, fontSize: 11, fontWeight: fontWeight.bold },
+  checkText: { color: '#FFFFFF', fontSize: 11, fontWeight: fontWeight.bold },
 });

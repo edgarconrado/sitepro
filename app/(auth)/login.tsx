@@ -2,26 +2,27 @@
  * SitePro — Login Screen
  */
 
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { router } from 'expo-router';
-import { Building2, Mail, Lock } from 'lucide-react-native';
-import { colors } from '@theme/colors';
-import { fontSize, fontWeight, spacing, borderRadius, shadows, iconSize } from '@theme/tokens';
 import { Button } from '@components/ui/Button';
 import { Input } from '@components/ui/Input';
+import { useTheme } from '@hooks/useTheme';
 import { useAuthStore } from '@store/authStore';
+import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
 import { isValidEmail, isValidPassword } from '@utils/index';
+import { router } from 'expo-router';
+import { Building2, Lock, Mail } from 'lucide-react-native';
+import React, { useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 export default function LoginScreen() {
+  const { colors, isDark } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -159,7 +160,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: '#FAFAFA',
   },
   container: {
     flexGrow: 1,
@@ -171,22 +172,22 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 80,
     height: 80,
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#141414',
     borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.base,
-    ...shadows.lg,
+    ...shadows.xl,
   },
   title: {
     fontSize: fontSize['4xl'],
     fontWeight: fontWeight.black,
-    color: colors.text.primary,
+    color: '#0F0F0F',
     marginBottom: spacing.xs,
   },
   subtitle: {
     fontSize: fontSize.base,
-    color: colors.gray[600],
+    color: '#525252',
     marginBottom: spacing.xl,
   },
   form: {
@@ -208,27 +209,27 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderWidth: 1.5,
-    borderColor: colors.gray[400],
+    borderColor: '#A3A3A3',
     borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxActive: {
-    backgroundColor: colors.primary[600],
-    borderColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
+    borderColor: '#EAAB00',
   },
   checkmark: {
     fontSize: 11,
-    color: colors.white,
+    color: '#FFFFFF',
     fontWeight: fontWeight.bold,
   },
   rememberText: {
     fontSize: fontSize.body,
-    color: colors.text.secondary,
+    color: '#333333',
   },
   forgotText: {
     fontSize: fontSize.body,
-    color: colors.primary[600],
+    color: '#EAAB00',
     fontWeight: fontWeight.medium,
   },
   loginButton: {
@@ -243,11 +244,11 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: colors.gray[300],
+    backgroundColor: '#D4D4D4',
   },
   dividerText: {
     fontSize: fontSize.body,
-    color: colors.gray[500],
+    color: '#737373',
   },
   socialRow: {
     flexDirection: 'row',
@@ -257,14 +258,14 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: spacing.md,
     borderWidth: 1,
-    borderColor: colors.gray[300],
+    borderColor: '#D4D4D4',
     borderRadius: borderRadius.md,
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
   },
   socialText: {
     fontSize: fontSize.body,
-    color: colors.text.secondary,
+    color: '#333333',
     fontWeight: fontWeight.medium,
   },
   registerRow: {
@@ -273,11 +274,11 @@ const styles = StyleSheet.create({
   },
   registerText: {
     fontSize: fontSize.base,
-    color: colors.gray[600],
+    color: '#525252',
   },
   registerLink: {
     fontSize: fontSize.base,
-    color: colors.primary[600],
+    color: '#EAAB00',
     fontWeight: fontWeight.semibold,
   },
 });

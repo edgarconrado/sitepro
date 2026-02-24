@@ -2,10 +2,15 @@
  * SitePro — Photos Screen
  */
 
+import { colors } from '@/theme';
 import { StaggerItem } from '@components/ui/Animated';
 import { Avatar } from '@components/ui/Avatar';
+import { ConfirmDialogContainer, useConfirm } from '@components/ui/ConfirmDialog';
+import { EmptyPhotos } from '@components/ui/EmptyStates';
 import { FAB } from '@components/ui/FAB';
-import { colors } from '@theme/colors';
+import { PhotosScreenSkeleton, useSimulatedLoading } from '@components/ui/Skeletons';
+import { useToast } from '@components/ui/Toast';
+import { useTheme } from '@hooks/useTheme';
 import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
 import { formatDate, timeAgo } from '@utils/index';
 import { CameraType, CameraView, FlashMode, useCameraPermissions } from 'expo-camera';
@@ -86,6 +91,7 @@ function PhotoViewer({
   onNext,
   hasPrev,
   hasNext,
+  onDelete,
 }: {
   photo: MockPhoto;
   onClose: () => void;
@@ -93,7 +99,11 @@ function PhotoViewer({
   onNext: () => void;
   hasPrev: boolean;
   hasNext: boolean;
+  onDelete: () => void;
 }) {
+  const confirm = useConfirm();
+  const toast = useToast();
+
   return (
     <Modal visible animationType="fade" statusBarTranslucent>
       <View style={viewer.container}>
@@ -188,13 +198,24 @@ function PhotoViewer({
             </View>
 
             {/* Delete */}
-            <TouchableOpacity style={viewer.deleteBtn}>
+            <TouchableOpacity
+              style={viewer.deleteBtn}
+              onPress={() => confirm.confirm({
+                title: 'Eliminar foto',
+                message: `¿Eliminar esta foto de ${photo.zone}? No podrá recuperarse.`,
+                confirmLabel: 'Sí, eliminar',
+                icon: 'trash',
+                variant: 'danger',
+                onConfirm: () => { try { onDelete(); toast.success('Foto eliminada', `Foto de ${photo.zone}`); onClose(); } catch { toast.error('Error al eliminar', 'Inténtalo de nuevo'); } },
+              })}
+            >
               <Trash2 size={16} color={colors.error[500]} />
               <Text style={viewer.deleteBtnText}>Eliminar foto</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
       </View>
+      <ConfirmDialogContainer />
     </Modal>
   );
 }
@@ -572,6 +593,8 @@ function CameraModal({ onClose, onCapture }: {
 }
 
 export default function PhotosScreen() {
+  const { colors, isDark } = useTheme();
+
   const [activeZone, setActiveZone] = useState('Todas');
   const [photos, setPhotos] = useState<MockPhoto[]>(PHOTOS);
   const [showCameraOptions, setShowCameraOptions] = useState(false);
@@ -682,6 +705,9 @@ export default function PhotosScreen() {
   const handlePrev = () => setSelectedIndex((i) => (i !== null && i > 0 ? i - 1 : i));
   const handleNext = () => setSelectedIndex((i) => (i !== null && i < filtered.length - 1 ? i + 1 : i));
 
+  const isLoading = useSimulatedLoading();
+  if (isLoading) return <PhotosScreenSkeleton />;
+
   return (
     <>
       <SafeAreaView style={styles.safe}>
@@ -718,11 +744,11 @@ export default function PhotosScreen() {
 
         {/* Grid */}
         {filtered.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Camera size={40} color={colors.gray[300]} />
-            <Text style={styles.emptyTitle}>Sin fotos</Text>
-            <Text style={styles.emptySubtitle}>No hay fotos en esta zona todavía</Text>
-          </View>
+          <EmptyPhotos
+            title="Sin fotos en esta zona"
+            subtitle="Registra el avance de obra con fotos. Abre la cámara o selecciona de tu galería."
+            cta={{ label: '📷 Abrir cámara', onPress: () => setShowCameraOptions(true) }}
+          />
         ) : (
           <FlatList
             data={filtered}
@@ -765,6 +791,12 @@ export default function PhotosScreen() {
             onNext={handleNext}
             hasPrev={selectedIndex > 0}
             hasNext={selectedIndex < filtered.length - 1}
+            onDelete={() => {
+              if (selectedIndex !== null) {
+                setPhotos(prev => prev.filter((_, i) => i !== selectedIndex));
+                setSelectedIndex(null);
+              }
+            }}
           />
         )}
 
@@ -890,25 +922,25 @@ export default function PhotosScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background.secondary },
+  safe: { flex: 1, backgroundColor: '#FAFAFA' },
   header: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: spacing.base,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: '#F5F5F5',
     ...shadows.sm,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
-  screenTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.text.primary },
-  photoCount: { fontSize: fontSize.body, color: colors.text.tertiary, fontWeight: fontWeight.medium },
+  screenTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  photoCount: { fontSize: fontSize.body, color: '#737373', fontWeight: fontWeight.medium },
   filtersScroll: { marginHorizontal: -spacing.base },
   filtersContent: { paddingHorizontal: spacing.base, gap: spacing.sm },
-  pill: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.full, backgroundColor: colors.gray[100] },
-  pillActive: { backgroundColor: colors.purple[500] },
-  pillText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.gray[700] },
-  pillTextActive: { color: colors.white },
+  pill: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.full, backgroundColor: '#F5F5F5' },
+  pillActive: { backgroundColor: '#8B5CF6' },
+  pillText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#333333' },
+  pillTextActive: { color: '#FFFFFF' },
 
   // Grid
   grid: { padding: spacing.base, paddingBottom: 100 },
@@ -939,15 +971,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   overlayRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
-  overlayLocation: { fontSize: 11, fontWeight: fontWeight.medium, color: colors.white, flex: 1 },
+  overlayLocation: { fontSize: 11, fontWeight: fontWeight.medium, color: '#FFFFFF', flex: 1 },
   overlayMeta: { flexDirection: 'row', justifyContent: 'space-between' },
-  overlayUser: { fontSize: 10, color: `${colors.white}CC` },
-  overlayDate: { fontSize: 10, color: `${colors.white}99` },
+  overlayUser: { fontSize: 10, color: `${'#FFFFFF'}CC` },
+  overlayDate: { fontSize: 10, color: `${'#FFFFFF'}99` },
 
   // Empty
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.secondary },
-  emptySubtitle: { fontSize: fontSize.body, color: colors.text.tertiary },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#333333' },
+  emptySubtitle: { fontSize: fontSize.body, color: '#737373' },
 });
 
 // ─── Viewer Styles ────────────────────────────────────────────
@@ -963,12 +995,12 @@ const viewer = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   iconBtn: { padding: spacing.sm, borderRadius: borderRadius.full, backgroundColor: 'rgba(255,255,255,0.1)' },
-  topTitle: { flex: 1, textAlign: 'center', fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white, marginHorizontal: spacing.sm },
+  topTitle: { flex: 1, textAlign: 'center', fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#FFFFFF', marginHorizontal: spacing.sm },
 
   // Image
   imageArea: { flex: 1, position: 'relative', justifyContent: 'center', alignItems: 'center' },
   imagePlaceholder: { width: SCREEN_WIDTH, flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
-  imagePlaceholderText: { fontSize: fontSize.base, color: `${colors.white}60`, fontWeight: fontWeight.medium },
+  imagePlaceholderText: { fontSize: fontSize.base, color: `${'#FFFFFF'}60`, fontWeight: fontWeight.medium },
   navBtn: {
     position: 'absolute',
     top: '50%',
@@ -983,7 +1015,7 @@ const viewer = StyleSheet.create({
 
   // Info sheet
   infoSheet: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     padding: spacing.base,
@@ -992,24 +1024,24 @@ const viewer = StyleSheet.create({
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
   metaInfo: { flex: 1 },
-  metaName: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.text.primary },
-  metaTime: { fontSize: fontSize.small, color: colors.text.tertiary },
-  downloadBtn: { padding: spacing.sm, backgroundColor: colors.primary[50], borderRadius: borderRadius.sm },
+  metaName: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#0F0F0F' },
+  metaTime: { fontSize: fontSize.small, color: '#737373' },
+  downloadBtn: { padding: spacing.sm, backgroundColor: '#FFFBEB', borderRadius: borderRadius.sm },
 
   detailsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  detailItem: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.gray[50], paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: borderRadius.sm },
-  detailText: { fontSize: fontSize.small, color: colors.text.secondary },
+  detailItem: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FAFAFA', paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: borderRadius.sm },
+  detailText: { fontSize: fontSize.small, color: '#333333' },
 
-  notesCard: { backgroundColor: colors.background.secondary, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.md },
-  notesLabel: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.text.tertiary, marginBottom: 4 },
-  notesText: { fontSize: fontSize.body, color: colors.text.secondary, lineHeight: 20 },
+  notesCard: { backgroundColor: '#FAFAFA', borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.md },
+  notesLabel: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#737373', marginBottom: 4 },
+  notesText: { fontSize: fontSize.body, color: '#333333', lineHeight: 20 },
 
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  tag: { backgroundColor: colors.purple[50], paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: borderRadius.full },
-  tagText: { fontSize: fontSize.small, color: colors.purple[600], fontWeight: fontWeight.medium },
+  tag: { backgroundColor: '#F5F3FF', paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: borderRadius.full },
+  tagText: { fontSize: fontSize.small, color: '#7C3AED', fontWeight: fontWeight.medium },
 
-  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingVertical: spacing.md, borderRadius: borderRadius.md, backgroundColor: colors.error[50] },
-  deleteBtnText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: colors.error[500] },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingVertical: spacing.md, borderRadius: borderRadius.md, backgroundColor: '#FEF2F2' },
+  deleteBtnText: { fontSize: fontSize.body, fontWeight: fontWeight.medium, color: '#EF4444' },
 });
 
 // ─── Camera Styles ────────────────────────────────────────────
@@ -1025,10 +1057,10 @@ const cam = StyleSheet.create({
     flex: 1, alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#000', padding: spacing.xl, gap: spacing.base,
   },
-  permTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.white, textAlign: 'center' },
+  permTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: '#FFFFFF', textAlign: 'center' },
   permSub: { fontSize: fontSize.body, color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 22 },
-  permBtn: { backgroundColor: colors.primary[600], borderRadius: borderRadius.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.base, marginTop: spacing.sm },
-  permBtnText: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.white },
+  permBtn: { backgroundColor: '#EAAB00', borderRadius: borderRadius.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.base, marginTop: spacing.sm },
+  permBtnText: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#FFFFFF' },
   permCancel: { paddingVertical: spacing.md },
   permCancelText: { fontSize: fontSize.base, color: 'rgba(255,255,255,0.5)' },
   topBar: {
@@ -1036,7 +1068,7 @@ const cam = StyleSheet.create({
     paddingTop: 52, paddingHorizontal: spacing.base, paddingBottom: spacing.md,
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  topTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },
+  topTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#FFFFFF' },
   iconBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.15)',
@@ -1053,11 +1085,11 @@ const cam = StyleSheet.create({
   sideBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   shutter: {
     width: 72, height: 72, borderRadius: 36,
-    borderWidth: 4, borderColor: colors.white,
+    borderWidth: 4, borderColor: '#FFFFFF',
     alignItems: 'center', justifyContent: 'center',
   },
-  shutterCapturing: { borderColor: colors.primary[400] },
-  shutterInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.white },
+  shutterCapturing: { borderColor: '#FBBF24' },
+  shutterInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#FFFFFF' },
 });
 
 // ─── Camera Options Sheet Styles ──────────────────────────────
@@ -1065,20 +1097,20 @@ const camOpts = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   absoluteOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 100, flexDirection: 'column' },
   sheet: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl,
     paddingHorizontal: spacing.base,
   },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.gray[200], alignSelf: 'center', marginTop: spacing.sm, marginBottom: spacing.md },
-  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.primary, marginBottom: spacing.md },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E8E8E8', alignSelf: 'center', marginTop: spacing.sm, marginBottom: spacing.md },
+  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#0F0F0F', marginBottom: spacing.md },
   option: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.base,
     paddingVertical: spacing.base,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
   },
   optIcon: { width: 48, height: 48, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center' },
-  optTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.text.primary },
-  optSub: { fontSize: fontSize.small, color: colors.text.tertiary, marginTop: 2 },
+  optTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: '#0F0F0F' },
+  optSub: { fontSize: fontSize.small, color: '#737373', marginTop: 2 },
 });
 
 // ─── Permission Dialog Styles ─────────────────────────────────
@@ -1089,7 +1121,7 @@ const permDlg = StyleSheet.create({
     padding: spacing.xl,
   },
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     width: '100%',
@@ -1101,18 +1133,18 @@ const permDlg = StyleSheet.create({
   iconBg: {
     width: 72, height: 72, borderRadius: 36,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: colors.gray[100],
+    borderWidth: 2, borderColor: '#F5F5F5',
   },
   title: {
     fontSize: fontSize.xl, fontWeight: fontWeight.bold,
-    color: colors.text.primary, textAlign: 'center',
+    color: '#0F0F0F', textAlign: 'center',
   },
   desc: {
-    fontSize: fontSize.body, color: colors.text.secondary,
+    fontSize: fontSize.body, color: '#333333',
     textAlign: 'center', lineHeight: 22,
   },
   reasonBox: {
-    backgroundColor: colors.background.secondary,
+    backgroundColor: '#FAFAFA',
     borderRadius: borderRadius.md,
     padding: spacing.base,
     width: '100%',
@@ -1120,27 +1152,27 @@ const permDlg = StyleSheet.create({
   },
   reasonTitle: {
     fontSize: fontSize.body, fontWeight: fontWeight.bold,
-    color: colors.text.primary, marginBottom: spacing.xs,
+    color: '#0F0F0F', marginBottom: spacing.xs,
   },
   reasonItem: {
-    fontSize: fontSize.body, color: colors.text.secondary, lineHeight: 20,
+    fontSize: fontSize.body, color: '#333333', lineHeight: 20,
   },
   btnPrimary: {
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
     borderRadius: borderRadius.md,
     paddingVertical: spacing.base,
     width: '100%', alignItems: 'center',
     marginTop: spacing.sm,
   },
   btnPrimaryText: {
-    fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.white,
+    fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#FFFFFF',
   },
   btnSecondary: {
     paddingVertical: spacing.sm,
     width: '100%', alignItems: 'center',
   },
   btnSecondaryText: {
-    fontSize: fontSize.base, color: colors.text.tertiary,
+    fontSize: fontSize.base, color: '#737373',
   },
 });
 
@@ -1148,25 +1180,25 @@ const permDlg = StyleSheet.create({
 const photoForm = StyleSheet.create({
   fullscreen: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: '#FAFAFA',
     zIndex: 998,
   },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
     paddingTop: 52,
-    borderBottomWidth: 1, borderBottomColor: colors.gray[100],
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
     ...shadows.sm,
   },
-  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
+  headerTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F' },
   discardBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  discardText: { fontSize: fontSize.body, color: colors.gray[500] },
-  saveBtn: { backgroundColor: colors.primary[600], paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
-  saveBtnText: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.white },
+  discardText: { fontSize: fontSize.body, color: '#737373' },
+  saveBtn: { backgroundColor: '#EAAB00', paddingHorizontal: spacing.base, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
+  saveBtnText: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: '#FFFFFF' },
   body: { flex: 1 },
 
-  previewContainer: { position: 'relative', height: 220, backgroundColor: colors.gray[900] },
+  previewContainer: { position: 'relative', height: 220, backgroundColor: '#0F0F0F' },
   preview: { width: '100%', height: '100%' },
   previewBadge: {
     position: 'absolute', bottom: spacing.sm, left: spacing.sm,
@@ -1174,60 +1206,60 @@ const photoForm = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: borderRadius.full,
     paddingHorizontal: spacing.sm, paddingVertical: 3,
   },
-  previewBadgeText: { fontSize: 10, color: colors.white, fontWeight: fontWeight.medium },
+  previewBadgeText: { fontSize: 10, color: '#FFFFFF', fontWeight: fontWeight.medium },
 
-  field: { backgroundColor: colors.white, padding: spacing.base, marginTop: spacing.sm },
+  field: { backgroundColor: '#FFFFFF', padding: spacing.base, marginTop: spacing.sm },
   fieldLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
-  fieldLabel: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.text.primary, flex: 1 },
-  optional: { fontSize: fontSize.small, color: colors.text.tertiary },
+  fieldLabel: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: '#0F0F0F', flex: 1 },
+  optional: { fontSize: fontSize.small, color: '#737373' },
 
   input: {
-    borderWidth: 1, borderColor: colors.gray[200], borderRadius: borderRadius.md,
+    borderWidth: 1, borderColor: '#E8E8E8', borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    fontSize: fontSize.base, color: colors.text.primary, backgroundColor: colors.background.secondary,
+    fontSize: fontSize.base, color: '#0F0F0F', backgroundColor: '#FAFAFA',
   },
   textarea: { minHeight: 80, textAlignVertical: 'top', paddingTop: spacing.md },
-  charCount: { fontSize: 10, color: colors.gray[400], textAlign: 'right', marginTop: 4 },
+  charCount: { fontSize: 10, color: '#A3A3A3', textAlign: 'right', marginTop: 4 },
 
   zonePicker: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderWidth: 1, borderColor: colors.gray[200], borderRadius: borderRadius.md,
+    borderWidth: 1, borderColor: '#E8E8E8', borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: '#FAFAFA',
   },
-  zonePickerText: { fontSize: fontSize.base, color: colors.text.primary, fontWeight: fontWeight.medium },
-  zoneList: { marginTop: spacing.xs, borderWidth: 1, borderColor: colors.gray[200], borderRadius: borderRadius.md, overflow: 'hidden' },
-  zoneOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.gray[100] },
-  zoneOptionActive: { backgroundColor: colors.primary[50] },
-  zoneOptionText: { fontSize: fontSize.base, color: colors.text.secondary },
-  zoneOptionTextActive: { color: colors.primary[700], fontWeight: fontWeight.semibold },
+  zonePickerText: { fontSize: fontSize.base, color: '#0F0F0F', fontWeight: fontWeight.medium },
+  zoneList: { marginTop: spacing.xs, borderWidth: 1, borderColor: '#E8E8E8', borderRadius: borderRadius.md, overflow: 'hidden' },
+  zoneOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+  zoneOptionActive: { backgroundColor: '#FFFBEB' },
+  zoneOptionText: { fontSize: fontSize.base, color: '#333333' },
+  zoneOptionTextActive: { color: '#CA8A04', fontWeight: fontWeight.semibold },
 
   tagGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   tagChip: {
     paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 1,
-    borderRadius: borderRadius.full, borderWidth: 1, borderColor: colors.gray[200],
-    backgroundColor: colors.gray[50],
+    borderRadius: borderRadius.full, borderWidth: 1, borderColor: '#E8E8E8',
+    backgroundColor: '#FAFAFA',
   },
-  tagChipActive: { backgroundColor: colors.primary[50], borderColor: colors.primary[300] },
-  tagChipText: { fontSize: fontSize.small, color: colors.gray[500] },
-  tagChipTextActive: { color: colors.primary[700], fontWeight: fontWeight.semibold },
+  tagChipActive: { backgroundColor: '#FFFBEB', borderColor: '#FCD34D' },
+  tagChipText: { fontSize: fontSize.small, color: '#737373' },
+  tagChipTextActive: { color: '#CA8A04', fontWeight: fontWeight.semibold },
 
   tagInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   tagInput: {
-    flex: 1, borderWidth: 1, borderColor: colors.gray[200], borderRadius: borderRadius.md,
+    flex: 1, borderWidth: 1, borderColor: '#E8E8E8', borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    fontSize: fontSize.base, color: colors.text.primary, backgroundColor: colors.background.secondary,
+    fontSize: fontSize.base, color: '#0F0F0F', backgroundColor: '#FAFAFA',
   },
   tagAddBtn: {
     width: 40, height: 40, borderRadius: borderRadius.md,
-    backgroundColor: colors.primary[600], alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#EAAB00', alignItems: 'center', justifyContent: 'center',
   },
   selectedTags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
   selectedTag: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.primary[50], borderRadius: borderRadius.full,
+    backgroundColor: '#FFFBEB', borderRadius: borderRadius.full,
     paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 1,
-    borderWidth: 1, borderColor: colors.primary[200],
+    borderWidth: 1, borderColor: '#FDE68A',
   },
-  selectedTagText: { fontSize: fontSize.small, color: colors.primary[700], fontWeight: fontWeight.medium },
+  selectedTagText: { fontSize: fontSize.small, color: '#CA8A04', fontWeight: fontWeight.medium },
 });

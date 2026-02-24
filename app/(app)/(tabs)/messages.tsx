@@ -2,8 +2,11 @@
  * SitePro — Messages Screen
  */
 
+import { EmptyMessages, EmptySearch } from '@/components/ui/EmptyStates';
+import { colors } from '@/theme';
 import { Avatar } from '@components/ui/Avatar';
-import { colors } from '@theme/colors';
+import { MessagesScreenSkeleton, useSimulatedLoading } from '@components/ui/Skeletons';
+import { useTheme } from '@hooks/useTheme';
 import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
 import { timeAgo } from '@utils/index';
 import {
@@ -243,6 +246,8 @@ function ConversationCard({ conv, onPress }: { conv: MockConversation; onPress: 
 
 // ─── Main Screen ──────────────────────────────────────────────
 export default function MessagesScreen() {
+  const { colors, isDark } = useTheme();
+
   const [search, setSearch] = useState('');
   const [openConv, setOpenConv] = useState<MockConversation | null>(null);
 
@@ -256,6 +261,8 @@ export default function MessagesScreen() {
 
   const totalUnread = CONVERSATIONS.reduce((acc, c) => acc + c.unreadCount, 0);
 
+  const isLoading = useSimulatedLoading();
+
   // Open chat modal
   if (openConv) {
     return (
@@ -264,6 +271,8 @@ export default function MessagesScreen() {
       </Modal>
     );
   }
+
+  if (isLoading) return <MessagesScreenSkeleton />;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -304,10 +313,12 @@ export default function MessagesScreen() {
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Sin conversaciones</Text>
-            <Text style={styles.emptySubtitle}>No se encontraron resultados para "{search}"</Text>
-          </View>
+          search
+            ? <EmptySearch title="Sin resultados" subtitle={`No se encontraron conversaciones para "${search}"`} />
+            : <EmptyMessages
+              title="Sin mensajes aún"
+              subtitle="Aquí verás los mensajes del proyecto. El equipo podrá comunicarse desde esta sección."
+            />
         }
         renderItem={({ item }) => (
           <ConversationCard conv={item} onPress={() => setOpenConv(item)} />
@@ -319,29 +330,29 @@ export default function MessagesScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.white },
+  safe: { flex: 1, backgroundColor: '#FFFFFF' },
   header: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: spacing.base,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: '#F5F5F5',
     ...shadows.sm,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
-  screenTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.text.primary },
-  totalUnreadBadge: { backgroundColor: colors.primary[100], paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: borderRadius.full },
-  totalUnreadText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.primary[700] },
+  screenTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  totalUnreadBadge: { backgroundColor: '#FEF3C7', paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: borderRadius.full },
+  totalUnreadText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: '#CA8A04' },
   searchContainer: {
     flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1, borderColor: colors.gray[300],
+    borderWidth: 1, borderColor: '#D4D4D4',
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.md, height: 40, gap: spacing.sm,
   },
-  searchInput: { flex: 1, fontSize: fontSize.body, color: colors.text.primary, paddingVertical: 0 },
+  searchInput: { flex: 1, fontSize: fontSize.body, color: '#0F0F0F', paddingVertical: 0 },
   listContent: { paddingBottom: 32 },
-  separator: { height: 1, backgroundColor: colors.gray[100], marginLeft: 72 },
+  separator: { height: 1, backgroundColor: '#F5F5F5', marginLeft: 72 },
 
   // Conversation card
   card: {
@@ -350,49 +361,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     gap: spacing.md,
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
   },
   cardContent: { flex: 1, minWidth: 0 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  convName: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.text.primary },
+  convName: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: '#0F0F0F' },
   convNameUnread: { fontWeight: fontWeight.bold },
-  convTime: { fontSize: fontSize.small, color: colors.text.tertiary, flexShrink: 0, marginLeft: spacing.sm },
+  convTime: { fontSize: fontSize.small, color: '#737373', flexShrink: 0, marginLeft: spacing.sm },
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  convPreview: { fontSize: fontSize.body, color: colors.text.tertiary, flex: 1 },
-  convPreviewUnread: { color: colors.text.secondary, fontWeight: fontWeight.medium },
+  convPreview: { fontSize: fontSize.body, color: '#737373', flex: 1 },
+  convPreviewUnread: { color: '#333333', fontWeight: fontWeight.medium },
   unreadBadge: {
     minWidth: 20, height: 20,
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
     borderRadius: borderRadius.full,
     alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 5, marginLeft: spacing.sm, flexShrink: 0,
   },
-  unreadText: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.white },
+  unreadText: { fontSize: 10, fontWeight: fontWeight.bold, color: '#FFFFFF' },
 
   // Empty
   emptyState: { alignItems: 'center', paddingTop: 60, gap: spacing.sm },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text.secondary },
-  emptySubtitle: { fontSize: fontSize.body, color: colors.text.tertiary, textAlign: 'center', paddingHorizontal: spacing.xl },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#333333' },
+  emptySubtitle: { fontSize: fontSize.body, color: '#737373', textAlign: 'center', paddingHorizontal: spacing.xl },
 });
 
 // ─── Chat Styles ──────────────────────────────────────────────
 const chat = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background.secondary },
+  safe: { flex: 1, backgroundColor: '#FAFAFA' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: '#F5F5F5',
     gap: spacing.md,
     ...shadows.sm,
   },
   backBtn: { padding: spacing.xs },
   headerInfo: { flex: 1 },
-  headerName: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.text.primary },
-  headerStatus: { fontSize: fontSize.small, color: colors.text.tertiary },
+  headerName: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#0F0F0F' },
+  headerStatus: { fontSize: fontSize.small, color: '#737373' },
 
   // Messages
   messages: { flex: 1 },
@@ -406,31 +417,31 @@ const chat = StyleSheet.create({
   },
   bubbleOwn: {
     alignSelf: 'flex-end',
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
     borderBottomRightRadius: 4,
   },
   bubbleOther: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: colors.gray[100],
+    borderColor: '#F5F5F5',
     ...shadows.sm,
   },
   bubbleText: { fontSize: fontSize.base, lineHeight: 20 },
-  bubbleTextOwn: { color: colors.white },
-  bubbleTextOther: { color: colors.text.primary },
+  bubbleTextOwn: { color: '#FFFFFF' },
+  bubbleTextOther: { color: '#0F0F0F' },
   bubbleTime: { fontSize: 10 },
-  bubbleTimeOwn: { color: `${colors.white}99`, alignSelf: 'flex-end' },
-  bubbleTimeOther: { color: colors.text.tertiary },
+  bubbleTimeOwn: { color: `${'#FFFFFF'}99`, alignSelf: 'flex-end' },
+  bubbleTimeOther: { color: '#737373' },
 
   // Input bar
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: colors.gray[100],
+    borderTopColor: '#F5F5F5',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     gap: spacing.sm,
@@ -441,22 +452,22 @@ const chat = StyleSheet.create({
     flex: 1,
     minHeight: 40,
     maxHeight: 100,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: '#FAFAFA',
     borderRadius: borderRadius.xl,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     fontSize: fontSize.base,
-    color: colors.text.primary,
+    color: '#0F0F0F',
     borderWidth: 1,
-    borderColor: colors.gray[200],
+    borderColor: '#E8E8E8',
   },
   sendBtn: {
     width: 40, height: 40,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.gray[100],
+    backgroundColor: '#F5F5F5',
     alignItems: 'center', justifyContent: 'center',
   },
   sendBtnActive: {
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
   },
 });

@@ -2,20 +2,20 @@
  * SitePro — Onboarding (3 pantallas)
  */
 
-import React, { useState, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Animated,
-  Dimensions,
-  FlatList,
-} from 'react-native';
+import { colors } from '@/theme';
+import { useTheme } from '@hooks/useTheme';
+import { borderRadius, fontSize, fontWeight, spacing, touchSize } from '@theme/tokens';
 import { router } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
-import { colors } from '@theme/colors';
-import { fontSize, fontWeight, spacing, borderRadius, touchSize } from '@theme/tokens';
+import React, { useRef, useState } from 'react';
+import {
+  Dimensions,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -50,6 +50,7 @@ const SLIDES = [
 ];
 
 export default function OnboardingScreen() {
+  const { colors, isDark } = useTheme();
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
@@ -134,7 +135,7 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.primary,
+    backgroundColor: '#FFFFFF',
     paddingBottom: spacing.xl,
   },
   slide: {
@@ -157,13 +158,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: fontSize['3xl'],
     fontWeight: fontWeight.bold,
-    color: colors.text.primary,
+    color: '#0F0F0F',
     textAlign: 'center',
     marginBottom: spacing.base,
   },
   description: {
     fontSize: fontSize.lg,
-    color: colors.gray[600],
+    color: '#525252',
     textAlign: 'center',
     lineHeight: 28,
     maxWidth: 340,
@@ -181,11 +182,11 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     width: 32,
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
   },
   dotInactive: {
     width: 8,
-    backgroundColor: colors.gray[300],
+    backgroundColor: '#D4D4D4',
   },
   buttonsRow: {
     flexDirection: 'row',
@@ -201,7 +202,7 @@ const styles = StyleSheet.create({
   },
   skipText: {
     fontSize: fontSize.base,
-    color: colors.gray[500],
+    color: '#737373',
     fontWeight: fontWeight.medium,
   },
   nextButton: {
@@ -211,12 +212,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
-    backgroundColor: colors.primary[600],
+    backgroundColor: '#EAAB00',
     borderRadius: borderRadius.md,
   },
   nextText: {
     fontSize: fontSize.base,
     fontWeight: fontWeight.semibold,
-    color: colors.white,
+    color: '#FFFFFF',
   },
 });

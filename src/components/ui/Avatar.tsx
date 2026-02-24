@@ -3,10 +3,11 @@
  * Muestra iniciales del usuario con indicador de estado online
  */
 
+import { colors } from '@/theme';
+import { useTheme } from '@hooks/useTheme';
+import { borderRadius, fontWeight } from '@theme/tokens';
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '@theme/colors';
-import { fontSize, fontWeight, borderRadius } from '@theme/tokens';
+import { StyleSheet, Text, View } from 'react-native';
 
 interface AvatarProps {
   initials: string;
@@ -16,13 +17,14 @@ interface AvatarProps {
   isOnline?: boolean;
 }
 
-export function Avatar({
+export function Avatar({  
   initials,
   size = 40,
-  bgColor = colors.primary[600],
+  bgColor = colors.dark[800],
   showOnlineIndicator = false,
   isOnline = false,
 }: AvatarProps) {
+  const { colors, isDark } = useTheme();
   const indicatorSize = Math.max(size * 0.28, 10);
 
   return (
@@ -81,6 +83,6 @@ const styles = StyleSheet.create({
   indicator: {
     position: 'absolute',
     borderWidth: 2,
-    borderColor: colors.white,
+    borderColor: '#FFFFFF',
   },
 });

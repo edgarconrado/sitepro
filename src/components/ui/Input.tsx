@@ -3,19 +3,19 @@
  * Campo de texto con ícono izquierdo y opción para contraseña
  */
 
+import { useTheme } from '@hooks/useTheme';
+import { borderRadius, fontSize, fontWeight, iconSize, spacing, touchSize } from '@theme/tokens';
+import { Eye, EyeOff } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-  View,
-  TextInput,
-  Text,
-  TouchableOpacity,
   StyleSheet,
+  Text,
+  TextInput,
   TextInputProps,
+  TouchableOpacity,
+  View,
   ViewStyle,
 } from 'react-native';
-import { Eye, EyeOff } from 'lucide-react-native';
-import { colors } from '@theme/colors';
-import { fontSize, fontWeight, borderRadius, spacing, iconSize, touchSize } from '@theme/tokens';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -33,6 +33,7 @@ export function Input({
   containerStyle,
   ...textInputProps
 }: InputProps) {
+  const { colors, isDark } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -90,24 +91,24 @@ const styles = StyleSheet.create({
   label: {
     fontSize: fontSize.body,
     fontWeight: fontWeight.medium,
-    color: colors.text.secondary,
+    color: '#333333',
     marginBottom: spacing.xs,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border.default,
+    borderColor: '#E8E8E8',
     borderRadius: borderRadius.md,
-    backgroundColor: colors.white,
+    backgroundColor: '#FFFFFF',
     minHeight: touchSize.input,
   },
   inputFocused: {
-    borderColor: colors.primary[500],
+    borderColor: '#F59E0B',
     borderWidth: 2,
   },
   inputError: {
-    borderColor: colors.error[500],
+    borderColor: '#EF4444',
   },
   leftIcon: {
     paddingLeft: spacing.base,
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: fontSize.base,
-    color: colors.text.primary,
+    color: '#0F0F0F',
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.base,
   },
@@ -135,7 +136,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: fontSize.small,
-    color: colors.error[500],
+    color: '#EF4444',
     marginTop: spacing.xs,
   },
 });

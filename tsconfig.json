@@ -25,6 +25,9 @@
       "@utils/*": [
         "src/utils/*"
       ],
+      "@features/*": [
+        "src/features/*"
+      ],
       "@types/*": [
         "src/types/*"
       ]

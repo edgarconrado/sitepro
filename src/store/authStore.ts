@@ -1,63 +1,98 @@
 /**
- * SitePro — Store de Autenticación (Zustand)
+ * SitePro — Store de Autenticación con Supabase
  */
 
+import { supabase } from '@lib/supabase';
 import { create } from 'zustand';
-import type { AuthState, LoginCredentials, User } from '@types/index';
 
-interface AuthStore extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<void>;
-  logout: () => void;
-  setUser: (user: User) => void;
+interface Profile {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  job_title: string | null;
+  avatar_url: string | null;
 }
 
-// Mock user para desarrollo
-const MOCK_USER: User = {
-  id: '1',
-  name: 'Admin',
-  email: 'admin@sitepro.com',
-  role: 'Gerente de Proyecto',
-  initials: 'AM',
-  isOnline: true,
-  activeTasks: 8,
-};
+interface AuthStore {
+  user: Profile | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+
+  loadSession: () => Promise<void>;
+  login: (credentials: { email: string; password: string }) => Promise<void>;
+  logout: () => Promise<void>;
+}
 
 export const useAuthStore = create<AuthStore>((set) => ({
-  // Estado inicial
   user: null,
-  token: null,
   isAuthenticated: false,
-  isLoading: false,
+  isLoading: true,
+  error: null,
 
-  // Acciones
-  login: async (credentials: LoginCredentials) => {
-    set({ isLoading: true });
+  loadSession: async () => {
+    const timer = setTimeout(() => {
+      set({ isLoading: false, isAuthenticated: false });
+    }, 5000);
 
-    // TODO: Reemplazar con llamada real a la API
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        set({ isLoading: false, isAuthenticated: false });
+        return;
+      }
 
-    if (credentials.email && credentials.password) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, role, job_title, avatar_url')
+        .eq('id', session.user.id)
+        .single();
+
       set({
-        user: MOCK_USER,
-        token: 'mock-jwt-token',
-        isAuthenticated: true,
+        user: profile ?? null,
+        isAuthenticated: !!profile,
         isLoading: false,
       });
-    } else {
-      set({ isLoading: false });
-      throw new Error('Credenciales inválidas');
+    } catch {
+      set({ isLoading: false, isAuthenticated: false });
+    } finally {
+      clearTimeout(timer);
     }
   },
 
-  logout: () => {
-    set({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-    });
+  login: async ({ email, password }) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      if (!data.user) throw new Error('No se pudo iniciar sesión');
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, role, job_title, avatar_url')
+        .eq('id', data.user.id)
+        .single();
+
+      set({
+        user: profile ?? null,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+    } catch (err: any) {
+      const msg = err?.message ?? 'Error desconocido';
+      set({
+        isLoading: false,
+        error: msg.includes('Invalid login credentials')
+          ? 'Correo o contraseña incorrectos'
+          : msg,
+      });
+      throw err;
+    }
   },
 
-  setUser: (user: User) => {
-    set({ user });
+  logout: async () => {
+    await supabase.auth.signOut();
+    set({ user: null, isAuthenticated: false, error: null });
   },
 }));

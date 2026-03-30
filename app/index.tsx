@@ -1,21 +1,22 @@
 /**
  * SitePro — Ruta Raíz
- * Redirige según estado de autenticación
  */
 
-import { useEffect } from 'react';
-import { Redirect } from 'expo-router';
 import { useAuthStore } from '@store/authStore';
+import { Redirect } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
 
 export default function Index() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { isAuthenticated, isLoading } = useAuthStore();
 
-  // Redirige automáticamente:
-  // - Si autenticado → app principal (tabs)
-  // - Si no → flujo de auth (splash → onboarding → login)
-  if (isAuthenticated) {
-    return <Redirect href="/(app)/(tabs)/home" />;
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#141414' }}>
+        <ActivityIndicator size="large" color="#EAAB00" />
+      </View>
+    );
   }
 
+  if (isAuthenticated) return <Redirect href="/(app)/(tabs)/home" />;
   return <Redirect href="/(auth)/splash" />;
 }

@@ -1,30 +1,30 @@
 /**
  * home — ProjectSelectorModal
- * Lista y creación de proyectos
+ * Lista y creación de proyectos — conectado a Supabase
  */
 import { Badge } from '@components/ui/Badge';
 import { SelectorField, TextField } from '@components/ui/FormField';
 import { OptionsSheet } from '@components/ui/OptionsSheet';
 import { useTheme } from '@hooks/useTheme';
-import { useAppStore } from '@store/appStore';
+import { PROJECT_STATUS_COLORS, PROJECT_STATUS_LABELS, useProjectsStore } from '@store/projectsStore';
 import { borderRadius, fontSize, fontWeight, iconSize, spacing } from '@theme/tokens';
-import { formatShortDate, getProjectStatusColors } from '@utils/index';
 import { Building2, ChevronRight, Plus, X } from 'lucide-react-native';
 import React from 'react';
 import {
-    Alert, KeyboardAvoidingView,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
     Modal,
     Platform,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
 } from 'react-native';
 
-type ProjectStatus = 'En Progreso' | 'En Revisión' | 'Pausado';
-
-const STATUS_OPTIONS: ProjectStatus[] = ['En Progreso', 'En Revisión', 'Pausado'];
+type DbStatus = 'planning' | 'in_progress' | 'on_hold' | 'in_review' | 'completed' | 'cancelled';
+const STATUS_OPTIONS = Object.keys(PROJECT_STATUS_LABELS) as DbStatus[];
 
 interface Props {
     visible: boolean;
@@ -33,22 +33,26 @@ interface Props {
 
 export function ProjectSelectorModal({ visible, onClose }: Props) {
     const { colors } = useTheme();
-    const { projects, currentProjectId, setCurrentProject, addProject } = useAppStore();
+    const { projects, currentProjectId, setCurrentProject, createProject, loadProjects, isLoading } = useProjectsStore();
 
     const [view, setView] = React.useState<'list' | 'new'>('list');
     const [name, setName] = React.useState('');
-    const [client, setClient] = React.useState('');
     const [startDate, setStartDate] = React.useState('');
     const [deadline, setDeadline] = React.useState('');
-    const [status, setStatus] = React.useState<ProjectStatus>('En Progreso');
-    const [teamCount, setTeamCount] = React.useState('');
+    const [status, setStatus] = React.useState<DbStatus>('planning');
     const [showStatus, setShowStatus] = React.useState(false);
+    const [saving, setSaving] = React.useState(false);
 
+    // Cargar proyectos cuando se abre
+    React.useEffect(() => {
+        if (visible) loadProjects();
+    }, [visible]);
+
+    // Resetear al cerrar
     React.useEffect(() => {
         if (!visible) {
             setView('list');
-            setName(''); setClient(''); setStartDate('');
-            setDeadline(''); setStatus('En Progreso'); setTeamCount('');
+            setName(''); setStartDate(''); setDeadline(''); setStatus('planning');
         }
     }, [visible]);
 
@@ -60,25 +64,26 @@ export function ProjectSelectorModal({ visible, onClose }: Props) {
         setter(f);
     };
 
-    const handleCreate = () => {
-        if (!name.trim()) { Alert.alert('Error', 'El nombre es requerido'); return; }
-        if (startDate.length < 10) { Alert.alert('Error', 'Fecha de inicio inválida (aaaa-mm-dd)'); return; }
-        if (deadline.length < 10) { Alert.alert('Error', 'Fecha de entrega inválida (aaaa-mm-dd)'); return; }
+    const handleCreate = async () => {
+        if (!name.trim()) {
+            Alert.alert('Error', 'El nombre es requerido');
+            return;
+        }
 
-        addProject({
-            id: `proj-${Date.now()}`,
-            name: name.trim(),
-            status,
-            progress: 0,
-            startDate,
-            deadline,
-            totalTasks: 0,
-            completedTasks: 0,
-            pendingTasks: 0,
-            urgentTasks: 0,
-            teamCount: parseInt(teamCount) || 0,
-        });
-        onClose();
+        setSaving(true);
+        try {
+            await createProject({
+                name: name.trim(),
+                status,
+                start_date: startDate.length === 10 ? startDate : null,
+                deadline:   deadline.length === 10 ? deadline : null,
+            });
+            onClose();
+        } catch (err: any) {
+            Alert.alert('Error al crear proyecto', err.message ?? 'Intenta de nuevo');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -98,39 +103,52 @@ export function ProjectSelectorModal({ visible, onClose }: Props) {
                                 </View>
 
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
-                                    {projects.map((project) => {
-                                        const isSelected = project.id === currentProjectId;
-                                        const sc = getProjectStatusColors(project.status, colors);
-                                        return (
-                                            <TouchableOpacity
-                                                key={project.id}
-                                                onPress={() => { setCurrentProject(project.id); onClose(); }}
-                                                activeOpacity={0.85}
-                                                style={[
-                                                    s.projectCard,
-                                                    { borderColor: colors.border.light, backgroundColor: colors.background.secondary },
-                                                    isSelected && { borderColor: colors.primary[400], backgroundColor: colors.primary[50] },
-                                                ]}
-                                            >
-                                                <View style={s.projectHeader}>
-                                                    <Text style={[s.projectName, { color: colors.text.primary }]} numberOfLines={1}>
-                                                        {project.name}
-                                                    </Text>
-                                                    <Badge label={project.status} bg={sc.bg} textColor={sc.text} />
-                                                </View>
-                                                <View style={s.projectMeta}>
-                                                    <Text style={[s.metaText, { color: colors.text.tertiary }]}>{project.totalTasks} tareas</Text>
-                                                    <Text style={[s.metaText, { color: colors.text.tertiary }]}>{project.progress}% completado</Text>
-                                                    <Text style={[s.metaText, { color: colors.text.tertiary }]}>Vence: {formatShortDate(project.deadline)}</Text>
-                                                </View>
-                                                <View style={[s.progressTrack, { backgroundColor: colors.border.default }]}>
-                                                    <View style={[s.progressFill, { width: `${project.progress}%` as any, backgroundColor: colors.primary[600] }]} />
-                                                </View>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
+                                    {isLoading && projects.length === 0 ? (
+                                        <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary[500]} />
+                                    ) : projects.length === 0 ? (
+                                        <Text style={[s.emptyText, { color: colors.text.tertiary }]}>
+                                            No tienes proyectos aún
+                                        </Text>
+                                    ) : (
+                                        projects.map((project) => {
+                                            const isSelected = project.id === currentProjectId;
+                                            const statusColor = PROJECT_STATUS_COLORS[project.status] ?? '#6B7280';
+                                            const statusLabel = PROJECT_STATUS_LABELS[project.status] ?? project.status;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={project.id}
+                                                    onPress={() => { setCurrentProject(project.id); onClose(); }}
+                                                    activeOpacity={0.85}
+                                                    style={[
+                                                        s.projectCard,
+                                                        { borderColor: colors.border.light, backgroundColor: colors.background.secondary },
+                                                        isSelected && { borderColor: colors.primary[400], backgroundColor: colors.primary[50] },
+                                                    ]}
+                                                >
+                                                    <View style={s.projectHeader}>
+                                                        <Text style={[s.projectName, { color: colors.text.primary }]} numberOfLines={1}>
+                                                            {project.name}
+                                                        </Text>
+                                                        <Badge label={statusLabel} bg={statusColor + '20'} textColor={statusColor} />
+                                                    </View>
+                                                    <View style={s.projectMeta}>
+                                                        <Text style={[s.metaText, { color: colors.text.tertiary }]}>{project.total_tasks} tareas</Text>
+                                                        <Text style={[s.metaText, { color: colors.text.tertiary }]}>{project.progress}% completado</Text>
+                                                        {project.deadline && (
+                                                            <Text style={[s.metaText, { color: colors.text.tertiary }]}>
+                                                                Vence: {new Date(project.deadline).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                                                            </Text>
+                                                        )}
+                                                    </View>
+                                                    <View style={[s.progressTrack, { backgroundColor: colors.border.default }]}>
+                                                        <View style={[s.progressFill, { width: `${project.progress}%` as any, backgroundColor: colors.primary[600] }]} />
+                                                    </View>
+                                                </TouchableOpacity>
+                                            );
+                                        })
+                                    )}
 
-                                    {/* New project button */}
+                                    {/* Botón nuevo proyecto */}
                                     <TouchableOpacity
                                         style={[s.addBtn, { backgroundColor: colors.dark[800] }]}
                                         onPress={() => setView('new')}
@@ -155,8 +173,15 @@ export function ProjectSelectorModal({ visible, onClose }: Props) {
                                         <Text style={[s.backText, { color: colors.primary[700] }]}>← Volver</Text>
                                     </TouchableOpacity>
                                     <Text style={[s.title, { color: colors.text.primary }]}>Nuevo Proyecto</Text>
-                                    <TouchableOpacity onPress={handleCreate} style={[s.createBtn, { backgroundColor: colors.primary[600] }]}>
-                                        <Text style={[s.createText, { color: colors.dark[900] }]}>Crear</Text>
+                                    <TouchableOpacity
+                                        onPress={handleCreate}
+                                        disabled={saving}
+                                        style={[s.createBtn, { backgroundColor: colors.primary[600], opacity: saving ? 0.6 : 1 }]}
+                                    >
+                                        {saving
+                                            ? <ActivityIndicator size="small" color="#000" />
+                                            : <Text style={[s.createText, { color: colors.dark[900] }]}>Crear</Text>
+                                        }
                                     </TouchableOpacity>
                                 </View>
 
@@ -174,21 +199,16 @@ export function ProjectSelectorModal({ visible, onClose }: Props) {
                                         placeholder="Ej: Torre Empresarial Norte"
                                         value={name} onChangeText={setName} maxLength={60}
                                     />
-                                    <TextField
-                                        label="Cliente / Empresa"
-                                        placeholder="Ej: Grupo Inmobiliario XYZ"
-                                        value={client} onChangeText={setClient}
-                                    />
 
                                     <View style={{ flexDirection: 'row', gap: spacing.md }}>
                                         <View style={{ flex: 1 }}>
-                                            <TextField label="Inicio" required hint="aaaa-mm-dd"
+                                            <TextField label="Inicio" hint="aaaa-mm-dd"
                                                 placeholder="2026-01-01" value={startDate}
                                                 onChangeText={t => fmtDate(t, setStartDate)} keyboardType="numeric" maxLength={10}
                                             />
                                         </View>
                                         <View style={{ flex: 1 }}>
-                                            <TextField label="Entrega" required hint="aaaa-mm-dd"
+                                            <TextField label="Entrega" hint="aaaa-mm-dd"
                                                 placeholder="2026-12-31" value={deadline}
                                                 onChangeText={t => fmtDate(t, setDeadline)} keyboardType="numeric" maxLength={10}
                                             />
@@ -197,15 +217,9 @@ export function ProjectSelectorModal({ visible, onClose }: Props) {
 
                                     <SelectorField
                                         label="Estado inicial"
-                                        value={status}
+                                        value={PROJECT_STATUS_LABELS[status]}
                                         placeholder="Seleccionar"
                                         onPress={() => setShowStatus(true)}
-                                    />
-
-                                    <TextField
-                                        label="Personas en el equipo"
-                                        placeholder="Ej: 8"
-                                        value={teamCount} onChangeText={setTeamCount} keyboardType="numeric" maxLength={3}
                                     />
                                 </ScrollView>
                             </>
@@ -219,8 +233,9 @@ export function ProjectSelectorModal({ visible, onClose }: Props) {
                 title="Estado del proyecto"
                 options={STATUS_OPTIONS}
                 selected={status}
-                onSelect={v => setStatus(v as ProjectStatus)}
+                onSelect={v => setStatus(v as DbStatus)}
                 onClose={() => setShowStatus(false)}
+                renderItem={opt => PROJECT_STATUS_LABELS[opt] ?? opt}
             />
         </Modal>
     );
@@ -232,8 +247,9 @@ const s = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.base, borderBottomWidth: 1 },
     title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
     backText: { fontSize: fontSize.base, fontWeight: fontWeight.medium },
-    createBtn: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm },
+    createBtn: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.sm, minWidth: 60, alignItems: 'center' },
     createText: { fontSize: fontSize.body, fontWeight: fontWeight.semibold },
+    emptyText: { textAlign: 'center', marginTop: 40, fontSize: fontSize.base },
     projectCard: { marginHorizontal: spacing.base, marginBottom: spacing.sm, borderRadius: borderRadius.md, borderWidth: 1, padding: spacing.base, gap: spacing.xs },
     projectHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
     projectName: { flex: 1, fontSize: fontSize.base, fontWeight: fontWeight.semibold },

@@ -6,6 +6,7 @@ import { Badge } from '@components/ui/Badge';
 import { SelectorField, TextField } from '@components/ui/FormField';
 import { OptionsSheet } from '@components/ui/OptionsSheet';
 import { useTheme } from '@hooks/useTheme';
+import { useToast } from '@components/ui/Toast';
 import { PROJECT_STATUS_COLORS, PROJECT_STATUS_LABELS, useProjectsStore } from '@store/projectsStore';
 import { borderRadius, fontSize, fontWeight, iconSize, spacing } from '@theme/tokens';
 import { Building2, ChevronRight, Plus, X } from 'lucide-react-native';
@@ -25,6 +26,12 @@ import {
 
 type DbStatus = 'planning' | 'in_progress' | 'on_hold' | 'in_review' | 'completed' | 'cancelled';
 const STATUS_OPTIONS = Object.keys(PROJECT_STATUS_LABELS) as DbStatus[];
+// Labels para mostrar en el selector
+const STATUS_LABELS = Object.values(PROJECT_STATUS_LABELS);
+// Mapa inverso: label → clave DB
+const LABEL_TO_STATUS: Record<string, DbStatus> = Object.fromEntries(
+    Object.entries(PROJECT_STATUS_LABELS).map(([k, v]) => [v, k as DbStatus])
+);
 
 interface Props {
     visible: boolean;
@@ -34,6 +41,7 @@ interface Props {
 export function ProjectSelectorModal({ visible, onClose }: Props) {
     const { colors } = useTheme();
     const { projects, currentProjectId, setCurrentProject, createProject, loadProjects, isLoading } = useProjectsStore();
+    const toast = useToast();
 
     const [view, setView] = React.useState<'list' | 'new'>('list');
     const [name, setName] = React.useState('');
@@ -78,6 +86,7 @@ export function ProjectSelectorModal({ visible, onClose }: Props) {
                 start_date: startDate.length === 10 ? startDate : null,
                 deadline:   deadline.length === 10 ? deadline : null,
             });
+            toast.success('Proyecto creado', name.trim() + ' fue creado exitosamente');
             onClose();
         } catch (err: any) {
             Alert.alert('Error al crear proyecto', err.message ?? 'Intenta de nuevo');
@@ -231,11 +240,10 @@ export function ProjectSelectorModal({ visible, onClose }: Props) {
             <OptionsSheet
                 visible={showStatus}
                 title="Estado del proyecto"
-                options={STATUS_OPTIONS}
-                selected={status}
-                onSelect={v => setStatus(v as DbStatus)}
+                options={STATUS_LABELS}
+                selected={PROJECT_STATUS_LABELS[status]}
+                onSelect={v => setStatus(LABEL_TO_STATUS[v])}
                 onClose={() => setShowStatus(false)}
-                renderItem={opt => PROJECT_STATUS_LABELS[opt] ?? opt}
             />
         </Modal>
     );

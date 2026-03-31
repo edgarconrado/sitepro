@@ -5,11 +5,15 @@
 import { Avatar } from '@components/ui/Avatar';
 import { SelectorField, TextAreaField, TextField } from '@components/ui/FormField';
 import { OptionsSheet } from '@components/ui/OptionsSheet';
+import { useToast } from '@components/ui/Toast';
 import { useTheme } from '@hooks/useTheme';
+import { fetchProjectMembers, useProjectsStore } from '@store/projectsStore';
 import { borderRadius, fontSize, fontWeight, spacing } from '@theme/tokens';
 import type { TaskPriority, TaskStatus } from '@types/index';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -22,7 +26,6 @@ import {
 import {
     LOCATION_OPTIONS,
     PRIORITY_OPTIONS, STATUS_OPTIONS,
-    TEAM_OPTIONS,
 } from './constants';
 import { useTaskForm } from './useTaskForm';
 
@@ -33,7 +36,26 @@ interface Props {
 
 export function NewTaskModal({ visible, onClose }: Props) {
     const { colors } = useTheme();
-    const { values, errors, setField, formatDeadline, submit, reset } = useTaskForm(onClose);
+    const toast = useToast();
+    const { values, errors, setField, formatDeadline, submit, reset, saving } = useTaskForm(onClose);
+    const { currentProjectId } = useProjectsStore();
+
+    // Miembros reales del proyecto
+    const [members, setMembers] = useState<{ id: string; full_name: string; job_title: string; avatar_url: string | null }[]>([]);
+    useEffect(() => {
+        if (visible && currentProjectId) {
+            fetchProjectMembers(currentProjectId).then(setMembers);
+        }
+    }, [visible, currentProjectId]);
+
+    const handleSubmit = async () => {
+        try {
+            await submit();
+            toast.success('Tarea creada', values.title.trim() || 'Nueva tarea');
+        } catch (err: any) {
+            Alert.alert('Error', err.message ?? 'No se pudo crear la tarea');
+        }
+    };
 
     const [showTeam, setShowTeam] = useState(false);
     const [showLocation, setShowLocation] = useState(false);
@@ -64,10 +86,14 @@ export function NewTaskModal({ visible, onClose }: Props) {
                             </TouchableOpacity>
                             <Text style={[s.title, { color: colors.text.primary }]}>Nueva Tarea</Text>
                             <TouchableOpacity
-                                onPress={submit}
-                                style={[s.saveBtn, { backgroundColor: colors.primary[600] }]}
+                                onPress={handleSubmit}
+                                disabled={saving}
+                                style={[s.saveBtn, { backgroundColor: colors.primary[600], opacity: saving ? 0.6 : 1 }]}
                             >
-                                <Text style={[s.saveText, { color: colors.dark[900] }]}>Guardar</Text>
+                                {saving
+                                    ? <ActivityIndicator size="small" color="#000" />
+                                    : <Text style={[s.saveText, { color: colors.dark[900] }]}>Guardar</Text>
+                                }
                             </TouchableOpacity>
                         </View>
 
@@ -161,18 +187,22 @@ export function NewTaskModal({ visible, onClose }: Props) {
             <OptionsSheet
                 visible={showTeam}
                 title="Asignar a"
-                options={TEAM_OPTIONS.map(m => m.id)}
+                options={members.map(m => m.id)}
                 selected={values.assignedTo?.id ?? null}
-                onSelect={(id) => setField('assignedTo', TEAM_OPTIONS.find(m => m.id === id)!)}
+                onSelect={(id) => {
+                    const m = members.find(x => x.id === id);
+                    if (m) setField('assignedTo', { id: m.id, name: m.full_name, initials: m.full_name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase(), role: m.job_title ?? '' });
+                }}
                 onClose={() => setShowTeam(false)}
                 renderItem={(id) => {
-                    const m = TEAM_OPTIONS.find(t => t.id === id)!;
+                    const m = members.find(x => x.id === id);
+                    if (!m) return null;
                     return (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 }}>
-                            <Avatar initials={m.initials} size={36} />
+                            <Avatar initials={m.full_name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()} size={36} />
                             <View>
-                                <Text style={{ fontSize: fontSize.base, color: colors.text.primary, fontWeight: fontWeight.medium }}>{m.name}</Text>
-                                <Text style={{ fontSize: fontSize.small, color: colors.text.tertiary }}>{m.role}</Text>
+                                <Text style={{ fontSize: fontSize.base, color: colors.text.primary, fontWeight: fontWeight.medium }}>{m.full_name}</Text>
+                                <Text style={{ fontSize: fontSize.small, color: colors.text.tertiary }}>{m.job_title ?? ''}</Text>
                             </View>
                         </View>
                     );

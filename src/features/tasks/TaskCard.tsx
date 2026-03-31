@@ -5,7 +5,7 @@
 import { Badge } from '@components/ui/Badge';
 import { useTheme } from '@hooks/useTheme';
 import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
-import type { Task } from '@types/index';
+import { STATUS_DB_TO_UI, PRIORITY_DB_TO_UI, type DbTask } from '@store/tasksStore';
 import { formatShortDate, getTaskPriorityColors, getTaskStatusColors } from '@utils/index';
 import { Calendar, ChevronRight, MapPin, Users } from 'lucide-react-native';
 import React from 'react';
@@ -13,14 +13,16 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TaskStatusIcon } from './TaskStatusIcon';
 
 interface Props {
-    task: Task;
+    task: DbTask;
     onPress: () => void;
 }
 
 export function TaskCard({ task, onPress }: Props) {
     const { colors } = useTheme();
-    const statusColors = getTaskStatusColors(task.status, colors);
-    const priorityColors = getTaskPriorityColors(task.priority, colors);
+    const uiStatus = STATUS_DB_TO_UI[task.status] ?? task.status;
+    const uiPriority = PRIORITY_DB_TO_UI[task.priority] ?? task.priority;
+    const statusColors = getTaskStatusColors(uiStatus, colors);
+    const priorityColors = getTaskPriorityColors(uiPriority, colors);
 
     return (
         <TouchableOpacity
@@ -30,7 +32,7 @@ export function TaskCard({ task, onPress }: Props) {
         >
             {/* Title row */}
             <View style={s.row1}>
-                <TaskStatusIcon status={task.status} />
+                <TaskStatusIcon status={uiStatus} />
                 <Text style={[s.title, { color: colors.text.primary }]} numberOfLines={1}>
                     {task.title}
                 </Text>
@@ -39,15 +41,15 @@ export function TaskCard({ task, onPress }: Props) {
 
             {/* Badge row */}
             <View style={s.row2}>
-                <Badge label={task.status} bg={statusColors.bg} textColor={statusColors.text} />
-                <Badge label={task.priority} bg={priorityColors.bg} textColor={priorityColors.text} />
+                <Badge label={uiStatus} bg={statusColors.bg} textColor={statusColors.text} />
+                <Badge label={uiPriority} bg={priorityColors.bg} textColor={priorityColors.text} />
             </View>
 
             {/* Meta row */}
             <View style={s.row3}>
-                <MetaItem icon={<Users size={12} color={colors.text.disabled} />} label={task.assignedTo.name} colors={colors} />
-                <MetaItem icon={<MapPin size={12} color={colors.text.disabled} />} label={task.location} colors={colors} />
-                <MetaItem icon={<Calendar size={12} color={colors.text.disabled} />} label={formatShortDate(task.deadline)} colors={colors} />
+                <MetaItem icon={<Users size={12} color={colors.text.disabled} />} label={task.assignee?.full_name ?? 'Sin asignar'} colors={colors} />
+                <MetaItem icon={<MapPin size={12} color={colors.text.disabled} />} label={task.location ?? '—'} colors={colors} />
+                <MetaItem icon={<Calendar size={12} color={colors.text.disabled} />} label={task.due_date ? formatShortDate(task.due_date) : 'Sin fecha'} colors={colors} />
             </View>
         </TouchableOpacity>
     );

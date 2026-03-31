@@ -1,20 +1,23 @@
 /**
- * tasks — useTaskForm hook
- * Encapsula toda la lógica de estado y validación del formulario
+ * tasks — useTaskForm hook (conectado a Supabase via tasksStore)
  */
-import { useAppStore } from '@store/appStore';
-import type { Task } from '@types/index';
-import { useCallback, useState } from 'react';
+import { useProjectsStore } from '@store/projectsStore';
 import {
-    EMPTY_FORM,
-    type TaskFormErrors,
-    type TaskFormValues
-} from './constants';
+    PRIORITY_UI_TO_DB,
+    STATUS_UI_TO_DB,
+    useTasksStore,
+} from '@store/tasksStore';
+import { useCallback, useState } from 'react';
+import { EMPTY_FORM, type TaskFormErrors, type TaskFormValues } from './constants';
 
 export function useTaskForm(onSuccess: () => void) {
-    const { addTask, currentProjectId } = useAppStore();
+    // Leer currentProjectId fresco en el momento del submit, no como closure
+    const getProjectId = () => useProjectsStore.getState().currentProjectId;
+    const { createTask } = useTasksStore();
+
     const [values, setValues] = useState<TaskFormValues>(EMPTY_FORM);
     const [errors, setErrors] = useState<TaskFormErrors>({});
+    const [saving, setSaving] = useState(false);
 
     const setField = useCallback(<K extends keyof TaskFormValues>(
         key: K,
@@ -38,56 +41,52 @@ export function useTaskForm(onSuccess: () => void) {
         const e: TaskFormErrors = {};
         if (!values.title.trim()) e.title = 'El título es requerido';
         if (!values.description.trim()) e.description = 'La descripción es requerida';
-        if (!values.assignedTo) e.assignedTo = 'Selecciona un responsable';
         if (!values.location) e.location = 'Selecciona una ubicación';
-        if (!values.deadline.trim()) {
-            e.deadline = 'Ingresa una fecha límite (dd/mm/aaaa)';
-        } else {
-            const parts = values.deadline.split('/');
-            if (parts.length !== 3 || parts.some(p => isNaN(Number(p)))) {
-                e.deadline = 'Formato inválido. Usa dd/mm/aaaa';
-            }
-        }
         setErrors(e);
         return Object.keys(e).length === 0;
     };
 
-    const submit = useCallback(() => {
-        if (!validate() || !values.assignedTo) return;
+    const submit = useCallback(async () => {
+        if (!validate()) return;
+        const currentProjectId = getProjectId();
+        if (!currentProjectId) {
+            console.error('[useTaskForm] currentProjectId is null - no active project');
+            throw new Error('No hay un proyecto activo. Selecciona un proyecto primero.');
+        }
 
-        const [day, month, year] = values.deadline.split('/');
-        const isoDeadline = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        setSaving(true);
+        try {
+            // Convertir fecha dd/mm/aaaa → aaaa-mm-dd
+            let due_date: string | null = null;
+            if (values.deadline.length === 10) {
+                const [day, month, year] = values.deadline.split('/');
+                due_date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
 
-        const newTask: Task = {
-            id: Date.now().toString(),
-            projectId: currentProjectId,
-            title: values.title.trim(),
-            description: values.description.trim(),
-            status: values.status,
-            priority: values.priority,
-            location: values.location,
-            createdAt: new Date().toISOString(),
-            deadline: isoDeadline,
-            assignedTo: {
-                id: values.assignedTo.id,
-                name: values.assignedTo.name,
-                email: `${values.assignedTo.name.split(' ')[0].toLowerCase()}@sitepro.com`,
-                role: values.assignedTo.role as any,
-                initials: values.assignedTo.initials,
-                isOnline: true,
-                activeTasks: 1,
-            },
-        };
+            await createTask({
+                project_id: currentProjectId,
+                title: values.title.trim(),
+                description: values.description.trim() || null,
+                status: STATUS_UI_TO_DB[values.status] ?? 'pending',
+                priority: PRIORITY_UI_TO_DB[values.priority] ?? 'medium',
+                assigned_to: values.assignedTo?.id || null,
+                location: values.location || null,
+                due_date,
+            });
 
-        addTask(newTask);
-        reset();
-        onSuccess();
-    }, [values, currentProjectId, addTask, onSuccess]);
+            onSuccess();
+            reset();
+        } catch (err: any) {
+            throw err;
+        } finally {
+            setSaving(false);
+        }
+    }, [values, createTask, onSuccess]);
 
     const reset = useCallback(() => {
         setValues(EMPTY_FORM);
         setErrors({});
     }, []);
 
-    return { values, errors, setField, formatDeadline, submit, reset };
+    return { values, errors, setField, formatDeadline, submit, reset, saving };
 }

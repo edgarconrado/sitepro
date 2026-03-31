@@ -7,9 +7,9 @@ import { Badge } from '@components/ui/Badge';
 import { ConfirmDialogContainer, useConfirm } from '@components/ui/ConfirmDialog';
 import { useToast } from '@components/ui/Toast';
 import { useTheme } from '@hooks/useTheme';
-import { useAppStore } from '@store/appStore';
+import { STATUS_DB_TO_UI, PRIORITY_DB_TO_UI, useTasksStore, type DbTask } from '@store/tasksStore';
 import { borderRadius, fontSize, fontWeight, iconSize, spacing } from '@theme/tokens';
-import type { Task } from '@types/index';
+
 import { formatShortDate, getTaskPriorityColors, getTaskStatusColors } from '@utils/index';
 import { Calendar, CheckCircle2, MapPin, X } from 'lucide-react-native';
 import React from 'react';
@@ -24,36 +24,39 @@ import {
 import { TaskStatusIcon } from './TaskStatusIcon';
 
 interface Props {
-    task: Task | null;
+    task: DbTask | null;
     onClose: () => void;
 }
 
 export function TaskDetailModal({ task, onClose }: Props) {
     const { colors } = useTheme();
-    const { updateTaskStatus, deleteTask } = useAppStore();
+    const { updateStatus, deleteTask } = useTasksStore();
     const confirm = useConfirm();
     const toast = useToast();
 
     if (!task) return null;
 
-    const sc = getTaskStatusColors(task.status, colors);
-    const pc = getTaskPriorityColors(task.priority, colors);
+    const uiStatus = STATUS_DB_TO_UI[task.status] ?? task.status;
+    const uiPriority = PRIORITY_DB_TO_UI[task.priority] ?? task.priority;
+    const sc = getTaskStatusColors(uiStatus, colors);
+    const pc = getTaskPriorityColors(uiPriority, colors);
 
     const handleComplete = () => {
-        updateTaskStatus(task.id, 'Completada');
+        updateStatus(task.id, 'completed');
         onClose();
     };
 
     const handleDelete = () => {
+        if (!task) return;
         confirm.confirm({
             title: 'Eliminar tarea',
             message: `¿Eliminar "${task.title}"? Esta acción no se puede deshacer.`,
             confirmLabel: 'Sí, eliminar',
             icon: 'trash',
             variant: 'danger',
-            onConfirm: () => {
+            onConfirm: async () => {
                 try {
-                    deleteTask(task.id);
+                    await deleteTask(task.id);
                     toast.success('Tarea eliminada', task.title);
                     onClose();
                 } catch {
@@ -79,54 +82,54 @@ export function TaskDetailModal({ task, onClose }: Props) {
                     <ScrollView style={s.body} showsVerticalScrollIndicator={false}>
                         {/* Title */}
                         <View style={s.titleRow}>
-                            <TaskStatusIcon status={task.status} />
+                            <TaskStatusIcon status={uiStatus} />
                             <Text style={[s.taskTitle, { color: colors.text.primary }]}>{task.title}</Text>
                         </View>
 
                         {/* Badges */}
                         <View style={s.badgesRow}>
-                            <Badge label={task.status} bg={sc.bg} textColor={sc.text} />
-                            <Badge label={`Prioridad: ${task.priority}`} bg={pc.bg} textColor={pc.text} />
+                            <Badge label={uiStatus} bg={sc.bg} textColor={sc.text} />
+                            <Badge label={`Prioridad: ${uiPriority}`} bg={pc.bg} textColor={pc.text} />
                         </View>
 
                         {/* Description */}
                         <View style={[s.descCard, { backgroundColor: colors.background.secondary }]}>
                             <Text style={[s.descLabel, { color: colors.text.secondary }]}>Descripción</Text>
-                            <Text style={[s.descText, { color: colors.text.tertiary }]}>{task.description}</Text>
+                            <Text style={[s.descText, { color: colors.text.tertiary }]}>{task.description ?? '—'}</Text>
                         </View>
 
                         {/* Info grid */}
                         <View style={s.infoGrid}>
                             <InfoCard label="Asignado a" colors={colors}>
                                 <View style={s.infoRow}>
-                                    <Avatar initials={task.assignedTo.initials} size={28} />
-                                    <Text style={[s.infoValue, { color: colors.text.primary }]}>{task.assignedTo.name}</Text>
+                                    <Avatar initials={(task.assignee?.full_name ?? '?').split(' ').map((w:string) => w[0]).join('').slice(0,2).toUpperCase()} size={28} />
+                                    <Text style={[s.infoValue, { color: colors.text.primary }]}>{task.assignee?.full_name ?? 'Sin asignar'}</Text>
                                 </View>
                             </InfoCard>
 
                             <InfoCard label="Fecha límite" colors={colors}>
                                 <View style={s.infoRow}>
                                     <Calendar size={14} color={colors.text.tertiary} />
-                                    <Text style={[s.infoValue, { color: colors.text.primary }]}>{formatShortDate(task.deadline)}</Text>
+                                    <Text style={[s.infoValue, { color: colors.text.primary }]}>{task.due_date ? formatShortDate(task.due_date) : 'Sin fecha'}</Text>
                                 </View>
                             </InfoCard>
 
                             <InfoCard label="Ubicación" colors={colors}>
                                 <View style={s.infoRow}>
                                     <MapPin size={14} color={colors.text.tertiary} />
-                                    <Text style={[s.infoValue, { color: colors.text.primary }]}>{task.location}</Text>
+                                    <Text style={[s.infoValue, { color: colors.text.primary }]}>{task.location ?? '—'}</Text>
                                 </View>
                             </InfoCard>
 
                             <InfoCard label="Estado" colors={colors}>
-                                <Text style={[s.infoValue, { color: sc.text }]}>{task.status}</Text>
+                                <Text style={[s.infoValue, { color: sc.text }]}>{uiStatus}</Text>
                             </InfoCard>
                         </View>
                     </ScrollView>
 
                     {/* Actions */}
                     <View style={[s.actions, { borderTopColor: colors.border.light }]}>
-                        {task.status !== 'Completada' && (
+                        {task.status !== 'completed' && (
                             <TouchableOpacity
                                 style={[s.btnPrimary, { backgroundColor: colors.primary[600] }]}
                                 onPress={handleComplete}
@@ -143,7 +146,7 @@ export function TaskDetailModal({ task, onClose }: Props) {
                         >
                             <Text style={[s.btnSecondaryText, { color: colors.text.secondary }]}>Cerrar</Text>
                         </TouchableOpacity>
-                        {task.status !== 'Completada' && (
+                        {task.status !== 'completed' && (
                             <TouchableOpacity
                                 style={[s.btnDanger, { backgroundColor: colors.error[50] }]}
                                 onPress={handleDelete}

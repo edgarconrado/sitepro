@@ -5,7 +5,7 @@
 import { EmptySearch, EmptyTasks } from '@components/ui/EmptyStates';
 import { FAB } from '@components/ui/FAB';
 import { FilterBar } from '@components/ui/FilterBar';
-import { TasksScreenSkeleton, useSimulatedLoading } from '@components/ui/Skeletons';
+import { TasksScreenSkeleton } from '@components/ui/Skeletons';
 import {
   NewTaskModal,
   TaskCard,
@@ -14,9 +14,10 @@ import {
 } from '@features/tasks';
 import { useTheme } from '@hooks/useTheme';
 import { borderRadius, fontSize, fontWeight, shadows, spacing } from '@theme/tokens';
-import type { Task } from '@types/index';
+import type { DbTask } from '@store/tasksStore';
+import { useProjectsStore } from '@store/projectsStore';
 import { Search, X } from 'lucide-react-native';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   FlatList, StatusBar,
   StyleSheet,
@@ -28,16 +29,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TasksScreen() {
   const { colors, isDark } = useTheme();
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTask, setSelectedTask] = useState<DbTask | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
+
+  const { currentProjectId, loadProjects } = useProjectsStore();
+
+  // Asegurar que los proyectos estén cargados
+  useEffect(() => { loadProjects(); }, []);
 
   const {
     search, setSearch,
     activeFilter, setActiveFilter,
     filtered, filterOptions,
+    isLoading,
   } = useTaskFilters();
 
-  const isLoading = useSimulatedLoading();
   if (isLoading) return <TasksScreenSkeleton />;
 
   return (

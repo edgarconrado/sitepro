@@ -39,21 +39,21 @@ export interface CreateProjectInput {
 }
 
 export const PROJECT_STATUS_LABELS: Record<string, string> = {
-  planning:    'Planificación',
+  planning: 'Planificación',
   in_progress: 'En Progreso',
-  on_hold:     'En Pausa',
-  in_review:   'En Revisión',
-  completed:   'Completado',
-  cancelled:   'Cancelado',
+  on_hold: 'En Pausa',
+  in_review: 'En Revisión',
+  completed: 'Completado',
+  cancelled: 'Cancelado',
 };
 
 export const PROJECT_STATUS_COLORS: Record<string, string> = {
-  planning:    '#6366F1',
+  planning: '#6366F1',
   in_progress: '#F59E0B',
-  on_hold:     '#9CA3AF',
-  in_review:   '#3B82F6',
-  completed:   '#10B981',
-  cancelled:   '#EF4444',
+  on_hold: '#9CA3AF',
+  in_review: '#3B82F6',
+  completed: '#10B981',
+  cancelled: '#EF4444',
 };
 
 // ─── Helper: carga proyectos del usuario ──────────────────────
@@ -92,15 +92,36 @@ async function loadProjectsFromDB(): Promise<DbProject[]> {
     const tasks: any[] = p.tasks ?? [];
     return {
       ...p,
-      total_tasks:     tasks.length,
+      total_tasks: tasks.length,
       completed_tasks: tasks.filter((t: any) => t.status === 'completed').length,
-      urgent_tasks:    tasks.filter((t: any) => t.status === 'urgent').length,
-      pending_tasks:   tasks.filter((t: any) => t.status === 'pending').length,
-      member_count:    (p.project_members ?? []).length,
-      tasks:           undefined,
+      urgent_tasks: tasks.filter((t: any) => t.status === 'urgent').length,
+      pending_tasks: tasks.filter((t: any) => t.status === 'pending').length,
+      member_count: (p.project_members ?? []).length,
+      tasks: undefined,
       project_members: undefined,
     } as DbProject;
   });
+}
+
+
+// ─── Cargar miembros de un proyecto ──────────────────────────
+export async function fetchProjectMembers(projectId: string) {
+  const { data, error } = await supabase
+    .from('project_members')
+    .select('user_id, role, profiles(id, full_name, job_title, avatar_url)')
+    .eq('project_id', projectId);
+
+  if (error) {
+    console.error('[fetchProjectMembers] error:', error.message);
+    return [];
+  }
+  return (data ?? []).map((m: any) => ({
+    id: m.profiles?.id ?? m.user_id,
+    full_name: m.profiles?.full_name ?? 'Usuario',
+    job_title: m.profiles?.job_title ?? '',
+    avatar_url: m.profiles?.avatar_url ?? null,
+    role: m.role,
+  }));
 }
 
 // ─── Store ────────────────────────────────────────────────────
@@ -151,16 +172,16 @@ export const useProjectsStore = create<ProjectsStore>((set, get) => ({
     const { data: project, error: insertError } = await supabase
       .from('projects')
       .insert({
-        name:        input.name,
+        name: input.name,
         description: input.description ?? null,
-        status:      input.status ?? 'planning',
-        start_date:  input.start_date ?? null,
-        deadline:    input.deadline ?? null,
-        address:     input.address ?? null,
-        city:        input.city ?? null,
-        budget:      input.budget ?? null,
-        progress:    0,
-        created_by:  user.id,
+        status: input.status ?? 'planning',
+        start_date: input.start_date ?? null,
+        deadline: input.deadline ?? null,
+        address: input.address ?? null,
+        city: input.city ?? null,
+        budget: input.budget ?? null,
+        progress: 0,
+        created_by: user.id,
       })
       .select('id')
       .single();

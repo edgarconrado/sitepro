@@ -6,6 +6,7 @@ import { ConfirmDialogContainer } from '@components/ui/ConfirmDialog';
 import { SyncBar } from '@components/ui/SyncManager';
 import { ToastContainer } from '@components/ui/Toast';
 import { useAuthStore } from '@store/authStore';
+import { useNotificationsStore } from '@store/notificationsStore';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -18,9 +19,14 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const { loadSession } = useAuthStore();
+  const { loadNotifications, startRealtime, stopRealtime } = useNotificationsStore();
 
   useEffect(() => {
-    loadSession().finally(() => SplashScreen.hideAsync());
+    loadSession().then(() => {
+      loadNotifications();
+      startRealtime();
+    }).finally(() => SplashScreen.hideAsync());
+    return () => stopRealtime();
   }, []);
 
   return (

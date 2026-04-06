@@ -8,9 +8,12 @@ import { Avatar } from '@components/ui/Avatar';
 import { ConfirmDialogContainer, useConfirm } from '@components/ui/ConfirmDialog';
 import { EmptyPhotos } from '@components/ui/EmptyStates';
 import { FAB } from '@components/ui/FAB';
-import { PhotosScreenSkeleton, useSimulatedLoading } from '@components/ui/Skeletons';
+import { PhotosScreenSkeleton } from '@components/ui/Skeletons';
 import { useToast } from '@components/ui/Toast';
 import { useTheme } from '@hooks/useTheme';
+import { fetchProjectPhotos, uploadPhoto, type DbPhoto } from '@services/photosService';
+import { useAuthStore } from '@store/authStore';
+import { useProjectsStore } from '@store/projectsStore';
 import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
 import { formatDate, timeAgo } from '@utils/index';
 import { CameraType, CameraView, FlashMode, useCameraPermissions } from 'expo-camera';
@@ -34,7 +37,7 @@ import {
   Zap,
   ZapOff,
 } from 'lucide-react-native';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -472,7 +475,7 @@ function PhotoFormModal({
 // ─── Camera Modal ─────────────────────────────────────────────
 function CameraModal({ onClose, onCapture }: {
   onClose: () => void;
-  onCapture: (uri: string) => void;
+  onCapture: (uri: string, base64?: string) => void;
 }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
@@ -493,10 +496,10 @@ function CameraModal({ onClose, onCapture }: {
     try {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.6,
-        base64: false,
-        skipProcessing: true, // faster on Android
+        base64: true,
+        skipProcessing: false,
       });
-      if (photo?.uri) onCapture(photo.uri);
+      if (photo?.uri) onCapture(photo.uri, photo.base64 ?? undefined);
     } catch (e) {
       Alert.alert('Error', 'No se pudo capturar la foto. Intenta de nuevo.');
       setCapturing(false);
@@ -595,13 +598,58 @@ function CameraModal({ onClose, onCapture }: {
 export default function PhotosScreen() {
   const { colors, isDark } = useTheme();
 
+  const { currentProjectId, loadProjects } = useProjectsStore();
+  const { user } = useAuthStore();
   const [activeZone, setActiveZone] = useState('Todas');
-  const [photos, setPhotos] = useState<MockPhoto[]>(PHOTOS);
+  const [photos, setPhotos] = useState<MockPhoto[]>([]);
+  const [dbPhotos, setDbPhotos] = useState<DbPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(true);
+
+  // Cargar fotos reales de Supabase
+  const loadPhotos = useCallback(async () => {
+    const projectId = useProjectsStore.getState().currentProjectId;
+    if (!projectId) return;
+    setPhotosLoading(true);
+    try {
+      const data = await fetchProjectPhotos(projectId);
+      setDbPhotos(data);
+      // Convertir DbPhoto → MockPhoto para mantener la UI existente
+      setPhotos(data.map(p => ({
+        id: p.id,
+        uri: p.file_url,
+        location: p.location ?? 'Sin ubicación',
+        zone: p.zone ?? 'General',
+        uploadedBy: {
+          name: p.uploader?.full_name ?? 'Usuario',
+          initials: (p.uploader?.full_name ?? 'U').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase(),
+        },
+        capturedAt: p.taken_at,
+        notes: p.description ?? '',
+        tags: [],
+        color: '#1E3A5F',
+        isReal: true,
+      })));
+    } catch (err) {
+      console.error('[photos] load error:', err);
+    } finally {
+      setPhotosLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProjects().then(loadPhotos);
+  }, []);
+
+  useEffect(() => {
+    if (currentProjectId) loadPhotos();
+  }, [currentProjectId]);
   const [showCameraOptions, setShowCameraOptions] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [showPermDialog, setShowPermDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<'camera' | 'gallery' | null>(null);
   const [pendingUri, setPendingUri] = useState<string | null>(null);
+  const [pendingBase64, setPendingBase64] = useState<string | null>(null);
+  const [pendingMime, setPendingMime] = useState<string | null>(null);
   const pendingGallery = useRef(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
@@ -610,20 +658,38 @@ export default function PhotosScreen() {
     return photos.filter((p) => p.zone === activeZone);
   }, [activeZone, photos]);
 
-  const handleAddPhoto = (uri: string, meta?: { location: string; zone: string; notes: string; tags: string[] }) => {
-    const newPhoto: MockPhoto = {
-      id: `photo-${Date.now()}`,
-      uri,
+  const handleAddPhoto = async (uri: string, meta?: { location: string; zone: string; notes: string; tags: string[] }, base64?: string | null, mimeType?: string | null) => {
+    const projectId = useProjectsStore.getState().currentProjectId;
+    if (!projectId) { Alert.alert('Error', 'No hay proyecto activo'); return; }
+
+    // Preview optimista inmediato
+    const tempId = `temp-${Date.now()}`;
+    const tempPhoto: MockPhoto = {
+      id: tempId, uri,
       location: meta?.location || 'Sin ubicación',
       zone: meta?.zone || 'General',
       uploadedBy: { name: 'Tú', initials: 'TU' },
       capturedAt: new Date().toISOString(),
-      notes: meta?.notes || '',
-      tags: meta?.tags?.length ? meta.tags : [],
-      color: '#1E3A5F',
-      isReal: true,
+      notes: meta?.notes || '', tags: [], color: '#1E3A5F', isReal: true,
     };
-    setPhotos(prev => [newPhoto, ...prev]);
+    setPhotos(prev => [tempPhoto, ...prev]);
+
+    try {
+      await uploadPhoto({
+        uri, projectId,
+        base64: base64 ?? undefined,
+        mimeType: mimeType ?? undefined,
+        location: meta?.location || '',
+        zone: meta?.zone || '',
+        description: meta?.notes || '',
+      });
+      // Recargar para obtener URL real de Supabase
+      await loadPhotos();
+    } catch (err: any) {
+      // Revertir preview si falla
+      setPhotos(prev => prev.filter(p => p.id !== tempId));
+      Alert.alert('Error al subir foto', err.message ?? 'Intenta de nuevo');
+    }
   };
 
   const openGalleryAfterPermission = async () => {
@@ -631,11 +697,14 @@ export default function PhotosScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: false,
-        quality: 0.5,
+        quality: 0.6,
+        base64: true,
         exif: false,
       });
       if (!result.canceled && result.assets[0]) {
         setPendingUri(result.assets[0].uri);
+        setPendingBase64(result.assets[0].base64 ?? null);
+        setPendingMime(result.assets[0].mimeType ?? null);
       }
     } catch (e) {
       Alert.alert('Error', 'No se pudo abrir la galería. Intenta de nuevo.');
@@ -652,11 +721,14 @@ export default function PhotosScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: false,
-        quality: 0.5,
+        quality: 0.6,
+        base64: true,
         exif: false,
       });
       if (!result.canceled && result.assets[0]) {
         setPendingUri(result.assets[0].uri);
+        setPendingBase64(result.assets[0].base64 ?? null);
+        setPendingMime(result.assets[0].mimeType ?? null);
       }
     } catch (e) {
       Alert.alert('Error', 'No se pudo abrir la galería.');
@@ -705,8 +777,7 @@ export default function PhotosScreen() {
   const handlePrev = () => setSelectedIndex((i) => (i !== null && i > 0 ? i - 1 : i));
   const handleNext = () => setSelectedIndex((i) => (i !== null && i < filtered.length - 1 ? i + 1 : i));
 
-  const isLoading = useSimulatedLoading();
-  if (isLoading) return <PhotosScreenSkeleton />;
+  if (photosLoading && photos.length === 0) return <PhotosScreenSkeleton />;
 
   return (
     <>
@@ -904,7 +975,7 @@ export default function PhotosScreen() {
       {pendingUri && (
         <PhotoFormModal
           uri={pendingUri}
-          onSave={(data) => { handleAddPhoto(pendingUri, data); setPendingUri(null); }}
+          onSave={(data) => { handleAddPhoto(pendingUri, data); setPendingUri(null); setPendingBase64(null); setPendingMime(null); }}
           onDiscard={() => setPendingUri(null)}
         />
       )}
@@ -913,7 +984,7 @@ export default function PhotosScreen() {
       {showCamera && (
         <CameraModal
           onClose={() => setShowCamera(false)}
-          onCapture={(uri) => { setShowCamera(false); setTimeout(() => setPendingUri(uri), 300); }}
+          onCapture={(uri, b64) => { setShowCamera(false); setTimeout(() => { setPendingUri(uri); setPendingBase64(b64 ?? null); setPendingMime('image/jpeg'); }, 300); }}
         />
       )}
     </>

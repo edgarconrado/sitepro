@@ -8,6 +8,7 @@ import { GlobalSearch } from '@components/ui/GlobalSearch';
 import { useMenu } from '@hooks/useMenu';
 import { useTheme } from '@hooks/useTheme';
 import { useAppStore } from '@store/appStore';
+import { useNotificationsStore } from '@store/notificationsStore';
 import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
 import type { Notification } from '@types/index';
 import {
@@ -134,7 +135,7 @@ function NotificationsPanel({ visible, onClose }: { visible: boolean; onClose: (
 export function TopBar() {
   const { colors, isDark } = useTheme();
   const { open } = useMenu();
-  const unreadNotifications = useAppStore((s) => s.unreadNotifications);
+  const unreadNotifications = useNotificationsStore((s) => s.unreadCount);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const insets = useSafeAreaInsets();

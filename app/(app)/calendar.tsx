@@ -7,6 +7,9 @@
 import { colors } from '@/theme';
 import { EmptyCalendar } from '@components/ui/EmptyStates';
 import { useTheme } from '@hooks/useTheme';
+import { supabase } from '@lib/supabase';
+import { useAuthStore } from '@store/authStore';
+import { useProjectsStore } from '@store/projectsStore';
 import { borderRadius, fontSize, fontWeight, iconSize, shadows, spacing } from '@theme/tokens';
 import { router } from 'expo-router';
 import {
@@ -26,7 +29,7 @@ import {
   Users,
   X
 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -771,11 +774,76 @@ function NewEventModal({
 // ─── Main Screen ──────────────────────────────────────────────
 export default function CalendarScreen() {
   const { colors, isDark } = useTheme();
-  const today = new Date(2026, 1, 19); // 19 Feb 2026
+  const today = new Date(); // Fecha real actual
   const [view, setView] = useState<CalView>('Semana');
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [currentRef, setCurrentRef] = useState<Date>(today); // week/month navigation anchor
-  const [events, setEvents] = useState<CalEvent[]>(EVENTS);
+  const [events, setEvents] = useState<CalEvent[]>([]);
+  const [dbLoading, setDbLoading] = useState(true);
+  const { currentProjectId, loadProjects } = useProjectsStore();
+  const { user } = useAuthStore();
+
+  // Cargar tareas reales como eventos del calendario
+  const loadEvents = useCallback(async () => {
+    const projectId = useProjectsStore.getState().currentProjectId;
+    if (!projectId) return;
+    setDbLoading(true);
+    try {
+      // Traer tareas con due_date
+      const { data: tasks } = await supabase
+        .from('tasks')
+        .select('id, title, status, priority, due_date, assigned_to, location, description, profiles!tasks_assigned_to_fkey(full_name)')
+        .eq('project_id', projectId)
+        .not('due_date', 'is', null);
+
+      const taskEvents: CalEvent[] = (tasks ?? []).map((t: any) => ({
+        id: t.id,
+        title: t.title,
+        type: 'Tarea' as EventType,
+        date: t.due_date,
+        color: colors.primary[600],
+        description: t.description ?? '',
+        location: t.location ?? undefined,
+        assignedTo: t.profiles?.full_name ?? undefined,
+        isAllDay: true,
+      }));
+
+      // Traer eventos personalizados guardados en activity_log con resource_type='event'
+      const { data: customEvents } = await supabase
+        .from('activity_log')
+        .select('id, description, metadata, created_at')
+        .eq('project_id', projectId)
+        .eq('resource_type', 'event');
+
+      const customCalEvents: CalEvent[] = (customEvents ?? [])
+        .filter((e: any) => e.metadata?.date)
+        .map((e: any) => ({
+          id: e.id,
+          title: e.description ?? 'Evento',
+          type: (e.metadata?.type ?? 'Reunión') as EventType,
+          date: e.metadata.date,
+          color: TYPE_CONFIG[(e.metadata?.type ?? 'Reunión') as EventType]?.color ?? colors.purple[500],
+          description: e.metadata?.description ?? '',
+          isAllDay: e.metadata?.isAllDay ?? false,
+          startTime: e.metadata?.startTime,
+          endTime: e.metadata?.endTime,
+          location: e.metadata?.location,
+          assignedTo: e.metadata?.assignedTo,
+        }));
+
+      setEvents([...taskEvents, ...customCalEvents]);
+    } finally {
+      setDbLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProjects().then(loadEvents);
+  }, []);
+
+  useEffect(() => {
+    if (currentProjectId) loadEvents();
+  }, [currentProjectId]);
   const [selectedEvent, setSelectedEvent] = useState<CalEvent | null>(null);
   const [showNewEvent, setShowNewEvent] = useState(false);
   const [activeTypes, setActiveTypes] = useState<Set<EventType>>(new Set(['Tarea', 'Reunión', 'Hito', 'Permiso']));
@@ -793,7 +861,29 @@ export default function CalendarScreen() {
     [events, activeTypes]
   );
 
-  const handleAddEvent = (newEvent: CalEvent) => {
+  const handleAddEvent = async (newEvent: CalEvent) => {
+    // Guardar en activity_log como evento personalizado
+    const projectId = useProjectsStore.getState().currentProjectId;
+    if (projectId && user?.id) {
+      await supabase.from('activity_log').insert({
+        project_id: projectId,
+        user_id: user.id,
+        action: 'created',
+        resource_type: 'event',
+        description: newEvent.title,
+        metadata: {
+          type: newEvent.type,
+          date: newEvent.date,
+          isAllDay: newEvent.isAllDay,
+          startTime: newEvent.startTime,
+          endTime: newEvent.endTime,
+          location: newEvent.location,
+          assignedTo: newEvent.assignedTo,
+          description: newEvent.description,
+          color: newEvent.color,
+        },
+      });
+    }
     setEvents(prev => [...prev, newEvent]);
   };
 

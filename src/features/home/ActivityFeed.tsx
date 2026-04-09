@@ -1,17 +1,15 @@
 /**
- * home — ActivityFeed
- * Feed de actividad reciente del proyecto
+ * home — ActivityFeed (actividad real de Supabase)
  */
 import { useTheme } from '@hooks/useTheme';
 import { borderRadius, fontSize, fontWeight, spacing } from '@theme/tokens';
 import { timeAgo } from '@utils/index';
-import { Camera, CheckCircle } from 'lucide-react-native';
+import { Camera, CheckCircle, ClipboardList } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-
-interface ActivityItem {
+export interface ActivityItem {
     id: string;
-    type: 'task_completed' | 'photo_uploaded' | string;
+    type: 'task_completed' | 'photo_uploaded' | 'task_assigned' | string;
     title: string;
     description: string;
     timestamp: string;
@@ -23,34 +21,56 @@ interface Props {
 
 export function ActivityFeed({ items }: Props) {
     const { colors } = useTheme();
+
+    if (items.length === 0) return null;
+
     return (
         <View style={s.container}>
             <Text style={[s.title, { color: colors.text.primary }]}>Actividad Reciente</Text>
             <View style={[s.card, { backgroundColor: colors.background.primary }]}>
-                {items.map((item, i) => (
-                    <View key={item.id}>
-                        <View style={s.item}>
-                            <View style={[s.iconBg, {
-                                backgroundColor: item.type === 'task_completed'
-                                    ? colors.success[100]
-                                    : colors.primary[100],
-                            }]}>
-                                {item.type === 'task_completed'
-                                    ? <CheckCircle size={14} color={colors.success[500]} />
-                                    : <Camera size={14} color={colors.primary[600]} />
-                                }
+                {items.map((item, i) => {
+                    const isPhoto = item.type === 'photo_uploaded';
+                    const isCompleted = item.type === 'task_completed';
+                    const iconBg = isCompleted
+                        ? colors.success[100]
+                        : isPhoto
+                            ? colors.purple[50]
+                            : colors.primary[100];
+                    const iconColor = isCompleted
+                        ? colors.success[500]
+                        : isPhoto
+                            ? '#8B5CF6'
+                            : colors.primary[600];
+
+                    return (
+                        <View key={item.id}>
+                            <View style={s.item}>
+                                <View style={[s.iconBg, { backgroundColor: iconBg }]}>
+                                    {isCompleted
+                                        ? <CheckCircle size={14} color={iconColor} />
+                                        : isPhoto
+                                            ? <Camera size={14} color={iconColor} />
+                                            : <ClipboardList size={14} color={iconColor} />
+                                    }
+                                </View>
+                                <View style={s.body}>
+                                    <Text style={[s.itemTitle, { color: colors.text.primary }]}>
+                                        {item.title}
+                                    </Text>
+                                    <Text style={[s.itemDesc, { color: colors.text.tertiary }]} numberOfLines={1}>
+                                        {item.description}
+                                    </Text>
+                                    <Text style={[s.itemTime, { color: colors.text.disabled }]}>
+                                        {timeAgo(item.timestamp)}
+                                    </Text>
+                                </View>
                             </View>
-                            <View style={s.body}>
-                                <Text style={[s.itemTitle, { color: colors.text.primary }]}>{item.title}</Text>
-                                <Text style={[s.itemDesc, { color: colors.text.tertiary }]} numberOfLines={1}>{item.description}</Text>
-                                <Text style={[s.itemTime, { color: colors.text.disabled }]}>{timeAgo(item.timestamp)}</Text>
-                            </View>
+                            {i < items.length - 1 && (
+                                <View style={[s.divider, { backgroundColor: colors.border.light }]} />
+                            )}
                         </View>
-                        {i < items.length - 1 && (
-                            <View style={[s.divider, { backgroundColor: colors.border.light }]} />
-                        )}
-                    </View>
-                ))}
+                    );
+                })}
             </View>
         </View>
     );

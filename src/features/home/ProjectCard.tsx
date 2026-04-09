@@ -1,22 +1,27 @@
 /**
- * home — ProjectCard
- * Tarjeta principal de métricas del proyecto actual
+ * home — ProjectCard (conectada a datos reales)
  */
 import { AnimatedNumber } from '@components/ui/Animated';
 import { useTheme } from '@hooks/useTheme';
+import type { DbProject } from '@store/projectsStore';
 import { borderRadius, fontSize, fontWeight, iconSize, spacing } from '@theme/tokens';
-import type { Project } from '@types/index';
 import { ChevronRight } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface Props {
-    project: Project | undefined;
+    project: DbProject | undefined;
     onPress: () => void;
 }
 
 export function ProjectCard({ project, onPress }: Props) {
     const { colors } = useTheme();
+
+    const totalTasks = project?.total_tasks ?? 0;
+    const progress = project?.progress ?? 0;
+    const urgentTasks = project?.urgent_tasks ?? 0;
+    const completedTasks = project?.completed_tasks ?? 0;
+
     return (
         <TouchableOpacity
             style={[s.card, { backgroundColor: colors.dark[800] }]}
@@ -25,16 +30,33 @@ export function ProjectCard({ project, onPress }: Props) {
         >
             <Text style={[s.label, { color: 'rgba(255,255,255,0.7)' }]}>Proyecto Actual</Text>
             <View style={s.nameRow}>
-                <Text style={s.name} numberOfLines={1}>{project?.name ?? 'Sin proyecto'}</Text>
+                <Text style={s.name} numberOfLines={1}>
+                    {project?.name ?? 'Sin proyecto activo'}
+                </Text>
                 <ChevronRight size={iconSize.md} color={colors.white} />
             </View>
+
+            {project?.description && (
+                <Text style={s.desc} numberOfLines={1}>{project.description}</Text>
+            )}
+
             <View style={[s.metricsRow, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
-                <Metric label="Tareas" value={project?.totalTasks ?? 0} />
+                <Metric label="Tareas" value={totalTasks} />
                 <View style={s.divider} />
-                <Metric label="Progreso" value={project?.progress ?? 0} suffix="%" />
+                <Metric label="Progreso" value={progress} suffix="%" />
                 <View style={s.divider} />
-                <Metric label="Urgentes" value={project?.urgentTasks ?? 0} />
+                <Metric label="Completadas" value={completedTasks} />
+                <View style={s.divider} />
+                <Metric label="Urgentes" value={urgentTasks} />
             </View>
+
+            {project?.deadline && (
+                <Text style={s.deadline}>
+                    🗓 Vence: {new Date(project.deadline).toLocaleDateString('es-MX', {
+                        day: 'numeric', month: 'short', year: 'numeric',
+                    })}
+                </Text>
+            )}
         </TouchableOpacity>
     );
 }
@@ -53,9 +75,11 @@ const s = StyleSheet.create({
     label: { fontSize: fontSize.small, fontWeight: fontWeight.medium },
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     name: { flex: 1, fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: '#FFFFFF' },
+    desc: { fontSize: fontSize.small, color: 'rgba(255,255,255,0.55)', marginTop: -spacing.sm },
     metricsRow: { flexDirection: 'row', borderRadius: borderRadius.sm, overflow: 'hidden' },
     metric: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm },
-    metricValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: '#FFFFFF' },
+    metricValue: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: '#FFFFFF' },
     metricLabel: { fontSize: fontSize.caption, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
     divider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
+    deadline: { fontSize: fontSize.small, color: 'rgba(255,255,255,0.6)', textAlign: 'right' },
 });

@@ -12,6 +12,9 @@ import { EmptyDocuments, EmptySearch } from '@components/ui/EmptyStates';
 import { FAB } from '@components/ui/FAB';
 import { useToast } from '@components/ui/Toast';
 import { useTheme } from '@hooks/useTheme';
+import { CATEGORY_TO_DB_TYPE, deleteDocument, DOC_TYPE_TO_CATEGORY, fetchProjectDocuments, uploadDocument, type DbDocument } from '@services/documentsService';
+import { useAuthStore } from '@store/authStore';
+import { useProjectsStore } from '@store/projectsStore';
 import {
   borderRadius,
   fontSize, fontWeight,
@@ -43,7 +46,7 @@ import {
   User,
   X
 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -463,7 +466,7 @@ function NewDocModal({
   onSave,
 }: {
   onClose: () => void;
-  onSave: (doc: SiteDocument) => void;
+  onSave: (doc: SiteDocument, fileUri: string | null, base64: string | null, mimeType: string | null) => void;
 }) {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<DocCategory>('Contratos');
@@ -477,6 +480,8 @@ function NewDocModal({
   const [fileUri, setFileUri] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileSize, setFileSize] = useState('');
+  const [fileBase64, setFileBase64] = useState<string | null>(null);
+  const [fileMime, setFileMime] = useState<string | null>(null);
 
   const fmtDate = (t: string, setter: (v: string) => void) => {
     const d = t.replace(/[^0-9]/g, '').slice(0, 8);
@@ -500,10 +505,13 @@ function NewDocModal({
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsMultipleSelection: false,
-        quality: 0.8,
+        quality: 0.7,
+        base64: true,
       });
       if (!result.canceled && result.assets[0]) {
         setFileUri(result.assets[0].uri);
+        setFileBase64(result.assets[0].base64 ?? null);
+        setFileMime(result.assets[0].mimeType ?? null);
         const parts = result.assets[0].uri.split('/');
         setFileName(parts[parts.length - 1]);
       }
@@ -532,7 +540,7 @@ function NewDocModal({
       tags,
       isFavorite: false,
     };
-    onSave(newDoc);
+    onSave(newDoc, fileUri, fileBase64, fileMime);
   };
 
   const cc = NEW_CAT_COLORS[category];
@@ -745,7 +753,7 @@ function NewDocModal({
                   </View>
                   <Text style={nd.fileName} numberOfLines={1}>{fileName}</Text>
                 </View>
-                <TouchableOpacity onPress={() => { setFileUri(null); setFileName(null); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity onPress={() => { setFileUri(null); setFileName(null); setFileBase64(null); setFileMime(null); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <X size={16} color={colors.gray[400]} />
                 </TouchableOpacity>
               </View>
@@ -768,8 +776,49 @@ function NewDocModal({
 // ─── Main Screen ──────────────────────────────────────────────
 export default function DocumentsScreen() {
   const { colors, isDark } = useTheme();
-  const [docs, setDocs] = useState<SiteDocument[]>(INITIAL_DOCS);
+  const { currentProjectId, loadProjects } = useProjectsStore();
+  const { user } = useAuthStore();
+  const [docs, setDocs] = useState<SiteDocument[]>([]);
+  const [dbDocs, setDbDocs] = useState<DbDocument[]>([]);
+  const [docsLoading, setDocsLoading] = useState(true);
   const [showNewDoc, setShowNewDoc] = useState(false);
+
+  // Convertir DbDocument → SiteDocument para mantener la UI
+  const dbToSiteDoc = useCallback((d: DbDocument): SiteDocument => {
+    const category = (DOC_TYPE_TO_CATEGORY[d.document_type ?? ''] ?? 'Reporte') as DocCategory;
+    const ext = (d.file_name.split('.').pop() ?? 'pdf').toUpperCase();
+    const fileType = (['PDF', 'DOCX', 'XLSX'].includes(ext) ? ext : 'PDF') as 'PDF' | 'DOCX' | 'XLSX';
+    const sizeKB = d.file_size ? `${(d.file_size / 1024).toFixed(0)} KB` : '—';
+    return {
+      id: d.id,
+      title: d.description?.split('\n')[0] || d.file_name.split('/').pop() || 'Sin título',
+      category,
+      status: 'Vigente' as DocStatus,
+      fileType,
+      fileSize: sizeKB,
+      version: `v${d.version}`,
+      author: d.uploader?.full_name ?? 'Usuario',
+      company: 'SitePro',
+      createdAt: d.created_at,
+      updatedAt: d.updated_at,
+      description: d.description ?? '',
+      tags: d.tags ?? [],
+      isFavorite: false,
+    };
+  }, []);
+
+  const loadDocs = useCallback(async () => {
+    const projectId = useProjectsStore.getState().currentProjectId;
+    if (!projectId) return;
+    setDocsLoading(true);
+    const data = await fetchProjectDocuments(projectId);
+    setDbDocs(data);
+    setDocs(data.map(dbToSiteDoc));
+    setDocsLoading(false);
+  }, [dbToSiteDoc]);
+
+  useEffect(() => { loadProjects().then(loadDocs); }, []);
+  useEffect(() => { if (currentProjectId) loadDocs(); }, [currentProjectId]);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<'Todos' | DocCategory>('Todos');
   const [onlyFavorites, setOnlyFavorites] = useState(false);
@@ -823,7 +872,7 @@ export default function DocumentsScreen() {
           </TouchableOpacity>
           <View style={styles.headerInfo}>
             <Text style={styles.headerTitle}>Documentos</Text>
-            <Text style={styles.headerSub}>{docs.length} documentos · Torre Empresarial Norte</Text>
+            <Text style={styles.headerSub}>{docs.length} documento{docs.length !== 1 ? 's' : ''} · {useProjectsStore.getState().currentProject()?.name ?? 'Proyecto'}</Text>
           </View>
         </View>
 
@@ -935,7 +984,14 @@ export default function DocumentsScreen() {
           doc={selectedDoc}
           onClose={() => setSelectedDoc(null)}
           onToggleFavorite={handleToggleFavorite}
-          onDelete={(id) => setDocs(prev => prev.filter(d => d.id !== id))}
+          onDelete={async (id) => {
+            const dbDoc = dbDocs.find(d => d.id === id);
+            if (dbDoc) {
+              try { await deleteDocument(dbDoc); } catch { }
+            }
+            setDocs(prev => prev.filter(d => d.id !== id));
+            setDbDocs(prev => prev.filter(d => d.id !== id));
+          }}
         />
 
         {/* FAB */}
@@ -949,7 +1005,32 @@ export default function DocumentsScreen() {
       {showNewDoc && (
         <NewDocModal
           onClose={() => setShowNewDoc(false)}
-          onSave={(doc) => { setDocs(prev => [doc, ...prev]); setShowNewDoc(false); }}
+          onSave={async (doc, fileUri, base64, mimeType) => {
+            const projectId = useProjectsStore.getState().currentProjectId;
+            if (!projectId || !fileUri) {
+              // Sin archivo, guardar solo metadatos localmente
+              setDocs(prev => [doc, ...prev]);
+              setShowNewDoc(false);
+              return;
+            }
+            try {
+              const dbType = CATEGORY_TO_DB_TYPE[doc.category] ?? 'reporte';
+              const uploaded = await uploadDocument({
+                uri: fileUri,
+                base64: base64 ?? undefined,
+                mimeType: mimeType ?? undefined,
+                projectId,
+                documentType: dbType,
+                description: doc.title + (doc.description ? '\n' + doc.description : ''),
+                tags: doc.tags,
+              });
+              setDbDocs(prev => [uploaded, ...prev]);
+              setDocs(prev => [dbToSiteDoc(uploaded), ...prev]);
+              setShowNewDoc(false);
+            } catch (err: any) {
+              Alert.alert('Error al subir', err.message ?? 'Inténtalo de nuevo');
+            }
+          }}
         />
       )}
     </>

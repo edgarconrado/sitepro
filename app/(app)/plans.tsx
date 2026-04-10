@@ -486,7 +486,11 @@ function NewPlanModal({ onClose, onSave }: {
         scale,
       });
 
-      toast.success('Plano subido', `${uploaded.code} — ${uploaded.title}`);
+      if (uploaded.file_type === 'pdf') {
+        toast.info('Plano subido', `${uploaded.code} — Convirtiendo PDF a imagen...`);
+      } else {
+        toast.success('Plano subido', `${uploaded.code} — ${uploaded.title}`);
+      }
       onSave(uploaded);
       onClose();
     } catch (err: any) {

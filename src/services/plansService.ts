@@ -74,7 +74,7 @@ export async function uploadPlan(opts: {
     // URL pública
     const { data: urlData } = supabase.storage.from('plans').getPublicUrl(fileName);
 
-    // Guardar en BD
+    // Guardar en BD (inicialmente con el PDF)
     const { data: plan, error: insertError } = await supabase
         .from('plans')
         .insert({
@@ -96,6 +96,31 @@ export async function uploadPlan(opts: {
         .single();
 
     if (insertError) throw new Error(insertError.message);
+
+    // Si es PDF → convertir a JPG en background via Edge Function
+    if (isPdf) {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            // Usar el nombre exacto de la función como aparece en el dashboard
+            const fnUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/rapid-responder`;
+            await fetch(fnUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token ?? ''}`,
+                },
+                body: JSON.stringify({
+                    planId: plan.id,
+                    fileName: fileName,
+                    projectId: opts.projectId,
+                }),
+            });
+        } catch (e) {
+            // La conversión falla silenciosamente — el PDF sigue disponible
+            console.warn('[plansService] PDF conversion failed:', e);
+        }
+    }
+
     return plan;
 }
 

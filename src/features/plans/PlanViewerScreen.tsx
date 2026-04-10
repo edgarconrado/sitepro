@@ -222,9 +222,20 @@ export default function PlanViewerScreen({ plan, onClose, onDelete }: {
     const [imgSize, setImgSize] = useState({ w: SW * 1.5, h: SH });
     const imgSizeRef = useRef({ w: SW * 1.5, h: SH });
     useEffect(() => { imgSizeRef.current = imgSize; }, [imgSize]);
+    // Para PDF las coordenadas usan dimensiones fijas del contenedor
+    useEffect(() => {
+        if (plan.file_type === 'pdf') {
+            imgSizeRef.current = { w: PDF_W, h: PDF_H };
+        }
+    }, [plan.file_type]);
 
     // Layout del canvasWrap para calcular el centro
     const canvasWrapLayout = useRef({ x: 0, y: 0, width: SW, height: SH * 0.6 });
+    // Para PDF usamos dimensiones fijas del contenedor visible
+    const PDF_W = SW;
+    const PDF_H = SH * 0.72;
+    // Posición absoluta del contenedor PDF en pantalla
+    const pdfContainerLayout = useRef({ x: 0, y: 0, width: PDF_W, height: PDF_H });
 
     // Refs para evitar stale closures en callbacks
     const userRef = useRef(user);
@@ -336,27 +347,26 @@ export default function PlanViewerScreen({ plan, onClose, onDelete }: {
         savedX.value = 0; savedY.value = 0;
     };
 
-    // ── Convertir toque de pantalla → coordenada en imagen ───
-    // pageX/pageY son absolutas en pantalla.
-    // El centro del canvasWrap es donde está el (0,0) del Animated.View antes de transforms.
-    // La imagen está centrada en el Animated.View.
+    // ── Convertir toque → coordenada en imagen PNG/JPG ──────
     const screenToImg = useCallback((pageX: number, pageY: number): Point => {
         const wrap = canvasWrapLayout.current;
-        // Centro del canvasWrap en pantalla
         const wrapCenterX = wrap.x + wrap.width / 2;
         const wrapCenterY = wrap.y + wrap.height / 2;
-
-        // El Animated.View parte del centro del wrap y se desplaza con offset + scale.
-        // Coordenada relativa al centro del Animated.View
         const relX = (pageX - wrapCenterX - offsetX.value) / scaleAnim.value;
         const relY = (pageY - wrapCenterY - offsetY.value) / scaleAnim.value;
-
-        // La imagen también está centrada en el Animated.View
-        const imgX = relX + imgSize.w / 2;
-        const imgY = relY + imgSize.h / 2;
-
-        return { x: imgX, y: imgY };
+        return { x: relX + imgSize.w / 2, y: relY + imgSize.h / 2 };
     }, [imgSize, offsetX, offsetY, scaleAnim]);
+
+    // ── Convertir toque → coordenada en PDF (sin zoom/pan animado) ──
+    // Para PDF el contenedor es un View fijo sin transforms — solo restamos
+    // la posición absoluta del contenedor en pantalla.
+    const screenToPdf = useCallback((pageX: number, pageY: number): Point => {
+        const container = pdfContainerLayout.current;
+        return {
+            x: pageX - container.x,
+            y: pageY - container.y,
+        };
+    }, []);
 
     // ── Touch handlers (refs para evitar stale closures) ───────
     const drawingRef = useRef(drawing);
@@ -366,11 +376,16 @@ export default function PlanViewerScreen({ plan, onClose, onDelete }: {
     useEffect(() => { drawStartRef.current = drawStart; }, [drawStart]);
     useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
 
+    const isPdfRef = useRef(plan.file_type === 'pdf');
+
     const handleTouch = useCallback((e: any) => {
         const tool = activeToolRef.current;
         if (tool === 'pan') return;
         const { pageX, pageY } = e.nativeEvent;
-        const pt = screenToImg(pageX, pageY);
+        // Usar función de conversión correcta según tipo de archivo
+        const pt = isPdfRef.current
+            ? screenToPdf(pageX, pageY)
+            : screenToImg(pageX, pageY);
         const color = annotColorRef.current;
 
         if (tool === 'pin') {
@@ -413,10 +428,12 @@ export default function PlanViewerScreen({ plan, onClose, onDelete }: {
     const handleMove = useCallback((e: any) => {
         if (activeToolRef.current !== 'measure' || !drawingRef.current) return;
         const { pageX, pageY } = e.nativeEvent;
-        const pt = screenToImg(pageX, pageY);
+        const pt = isPdfRef.current
+            ? screenToPdf(pageX, pageY)
+            : screenToImg(pageX, pageY);
         const { w, h } = imgSizeRef.current;
         setDrawEnd(normalize(pt, w, h));
-    }, [screenToImg]);
+    }, [screenToImg, screenToPdf]);
 
     // ── Cargar anotaciones desde Supabase ───────────────────
     useEffect(() => {
@@ -736,38 +753,102 @@ ${annotations.length > 0 ? `
                                     </Text>
                                 </View>
                             ) : plan.file_type === 'pdf' ? (
-                                /* PDF viewer — local si está cacheado, Google Docs si no */
-                                <View style={{ width: SW, height: SH * 0.72 }}>
-                                    {cacheStatus === 'cached' && localUri ? (
-                                        /* PDF local — usar Google Docs con archivo local o WebView directo */
-                                        <WebView
-                                            source={{
-                                                uri: Platform.OS === 'ios'
-                                                    ? localUri   // iOS puede renderizar PDF local directo
-                                                    : `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(plan.file_url)}`
-                                            }}
-                                            style={{ flex: 1, backgroundColor: '#1a1a1a' }}
-                                            startInLoadingState
-                                            renderLoading={() => (
-                                                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1a1a1a' }}>
-                                                    <ActivityIndicator color="#EAAB00" size="large" />
-                                                    <Text style={{ color: 'rgba(255,255,255,0.6)', marginTop: 12, fontSize: 13 }}>Abriendo PDF...</Text>
-                                                </View>
-                                            )}
-                                            onError={() => { if (localUri) WebBrowser.openBrowserAsync(localUri); }}
-                                        />
-                                    ) : (
-                                        <WebView
-                                            source={{ uri: `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(plan.file_url)}` }}
-                                            style={{ flex: 1, backgroundColor: '#1a1a1a' }}
-                                            startInLoadingState
-                                            renderLoading={() => (
-                                                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1a1a1a' }}>
-                                                    <ActivityIndicator color="#EAAB00" size="large" />
-                                                    <Text style={{ color: 'rgba(255,255,255,0.6)', marginTop: 12, fontSize: 13 }}>Cargando PDF...</Text>
-                                                </View>
-                                            )}
-                                            onError={() => { WebBrowser.openBrowserAsync(plan.file_url); }}
+                                /* PDF viewer con overlay de anotaciones */
+                                <View
+                                    style={{ width: PDF_W, height: PDF_H }}
+                                    onLayout={e => {
+                                        e.target.measure((_fx, _fy, w, h, px, py) => {
+                                            // Guardar posición absoluta del contenedor PDF
+                                            pdfContainerLayout.current = { x: px, y: py, width: w, height: h };
+                                        });
+                                    }}
+                                >
+                                    {/* WebView del PDF — desactivado cuando hay herramienta activa */}
+                                    <WebView
+                                        source={{ uri: `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(plan.file_url)}` }}
+                                        style={{ flex: 1, backgroundColor: '#1a1a1a' }}
+                                        startInLoadingState
+                                        javaScriptEnabled
+                                        domStorageEnabled
+                                        scrollEnabled={activeTool === 'pan'}
+                                        pointerEvents={activeTool === 'pan' ? 'auto' : 'none'}
+                                        renderLoading={() => (
+                                            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1a1a1a' }}>
+                                                <ActivityIndicator color="#EAAB00" size="large" />
+                                                <Text style={{ color: 'rgba(255,255,255,0.6)', marginTop: 12, fontSize: 13 }}>
+                                                    {cacheStatus === 'cached' ? 'Abriendo PDF...' : 'Cargando PDF...'}
+                                                </Text>
+                                            </View>
+                                        )}
+                                        onError={() => { WebBrowser.openBrowserAsync(plan.file_url); }}
+                                    />
+
+                                    {/* SVG overlay con anotaciones — siempre visible */}
+                                    <Svg
+                                        style={StyleSheet.absoluteFill}
+                                        viewBox={`0 0 ${PDF_W} ${PDF_H}`}
+                                        pointerEvents="none"
+                                    >
+                                        {/* Medición en progreso */}
+                                        {drawing && drawStart && drawEnd && (() => {
+                                            const dsD = denormalize(drawStart, PDF_W, PDF_H);
+                                            const deD = denormalize(drawEnd, PDF_W, PDF_H);
+                                            return (
+                                                <G>
+                                                    <Line x1={dsD.x} y1={dsD.y} x2={deD.x} y2={deD.y}
+                                                        stroke={annotColor} strokeWidth={2} strokeDasharray="6,3" />
+                                                    <Circle cx={dsD.x} cy={dsD.y} r={6} fill={annotColor} />
+                                                    <Circle cx={deD.x} cy={deD.y} r={6} fill={annotColor} />
+                                                    <SvgText x={(dsD.x + deD.x) / 2} y={(dsD.y + deD.y) / 2 - 10}
+                                                        fill={annotColor} fontSize={13} fontWeight="bold" textAnchor="middle">
+                                                        {calcRealDist(dist(dsD, deD), planScale)}
+                                                    </SvgText>
+                                                </G>
+                                            );
+                                        })()}
+                                        {/* Anotaciones guardadas */}
+                                        {annotations.map(a => {
+                                            if (a.type === 'measure' && a.start && a.end) {
+                                                const s = denormalize(a.start, PDF_W, PDF_H);
+                                                const e = denormalize(a.end, PDF_W, PDF_H);
+                                                const mx = (s.x + e.x) / 2; const my = (s.y + e.y) / 2 - 10;
+                                                return (
+                                                    <G key={a.id}>
+                                                        <Line x1={s.x} y1={s.y} x2={e.x} y2={e.y} stroke={a.color} strokeWidth={2} strokeDasharray="6,3" />
+                                                        <Circle cx={s.x} cy={s.y} r={5} fill={a.color} />
+                                                        <Circle cx={e.x} cy={e.y} r={5} fill={a.color} />
+                                                        <SvgText x={mx} y={my} fill={a.color} fontSize={11} fontWeight="bold" textAnchor="middle">{a.realDist}</SvgText>
+                                                    </G>
+                                                );
+                                            }
+                                            if (a.type === 'pin' && a.point) {
+                                                const p = denormalize(a.point, PDF_W, PDF_H);
+                                                return (
+                                                    <G key={a.id}>
+                                                        <Circle cx={p.x} cy={p.y} r={10} fill={a.color} opacity={0.9} />
+                                                        <SvgText x={p.x} y={p.y + 4} fill="white" fontSize={9} fontWeight="bold" textAnchor="middle">{a.label}</SvgText>
+                                                    </G>
+                                                );
+                                            }
+                                            if (a.type === 'text' && a.position) {
+                                                const p = denormalize(a.position, PDF_W, PDF_H);
+                                                return (
+                                                    <G key={a.id}>
+                                                        <Rect x={p.x - 3} y={p.y - 15} width={(a.text?.length ?? 4) * 8 + 10} height={20} rx={3} fill={a.color} opacity={0.85} />
+                                                        <SvgText x={p.x + 2} y={p.y + 1} fill="white" fontSize={12}>{a.text}</SvgText>
+                                                    </G>
+                                                );
+                                            }
+                                            return null;
+                                        })}
+                                    </Svg>
+
+                                    {/* Capa de touch para herramientas (encima del WebView) */}
+                                    {activeTool !== 'pan' && (
+                                        <View
+                                            style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}
+                                            onTouchStart={handleTouch}
+                                            onTouchMove={activeTool === 'measure' ? handleMove : undefined}
                                         />
                                     )}
                                 </View>
@@ -803,7 +884,7 @@ ${annotations.length > 0 ? `
                         </View>
                     )}
                     {/* Hint */}
-                    {plan.file_type !== 'pdf' && activeTool !== 'pan' && (
+                    {activeTool !== 'pan' && (
                         <View style={s.hint}>
                             <Text style={s.hintText}>
                                 {activeTool === 'measure'
@@ -821,8 +902,8 @@ ${annotations.length > 0 ? `
                         <TouchableOpacity style={s.zoomBtn} onPress={reset}><Maximize2 size={16} color="white" /></TouchableOpacity>
                     </View>
 
-                    {/* Color bar — solo para imágenes */}
-                    {plan.file_type !== 'pdf' && activeTool !== 'pan' && (
+                    {/* Color bar */}
+                    {activeTool !== 'pan' && (
                         <View style={s.colorBar}>
                             {ANNOT_COLORS.map(c => (
                                 <TouchableOpacity key={c} style={[s.colorDot, { backgroundColor: c }, annotColor === c && s.colorDotActive]} onPress={() => setAnnotColor(c)} />
@@ -830,8 +911,8 @@ ${annotations.length > 0 ? `
                         </View>
                     )}
 
-                    {/* Toolbar — solo para imágenes */}
-                    {plan.file_type !== 'pdf' && <Toolbar
+                    {/* Toolbar */}
+                    <Toolbar
                         activeTool={activeTool}
                         onTool={t => { setActiveTool(t); setDrawing(false); setDrawStart(null); setDrawEnd(null); }}
                         onUndo={() => {
@@ -843,7 +924,7 @@ ${annotations.length > 0 ? `
                             { text: 'Limpiar', style: 'destructive', onPress: clearAnnotations },
                         ])}
                         annotCount={annotations.length}
-                    />}
+                    />
                 </View>
             </GestureHandlerRootView>
 
